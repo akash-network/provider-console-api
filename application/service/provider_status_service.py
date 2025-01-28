@@ -45,7 +45,7 @@ def check_provider_status(chain_id: str, wallet_address: str, command_type: str)
         else:
             raise ValueError("Invalid command_type")
 
-        stdout, _ = run_ssh_command(ssh_client, command, True, timeout=25)
+        stdout, _ = run_ssh_command(ssh_client, command, True, timeout=10)
         provider_details = json.loads(stdout)
         ssh_client.close()
         return provider_details
