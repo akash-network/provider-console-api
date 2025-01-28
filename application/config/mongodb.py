@@ -10,3 +10,4 @@ provider_console_db = mongo_client[f"{Config.MONGO_DB_NAME}"]
 # connection with respective collections
 actions_collection = provider_console_db["actions"]
 wallet_addresses_collection = provider_console_db["wallet_addresses"]
+logs_collection = provider_console_db["logs"]

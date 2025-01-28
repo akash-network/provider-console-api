@@ -11,8 +11,3 @@ def generate_random_string(length: int = 15):
 def success_response(data):
     response = {"status": "success", "data": data}
     return response
-
-
-def error_response(code: str, message):
-    response = {"status": "error", "error": {"error_code": code, "message": message}}
-    return response

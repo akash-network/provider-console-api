@@ -10,27 +10,6 @@ from application.exception.application_error import ApplicationError
 router = APIRouter()
 
 
-async def get_provider_status(
-    status_type: str, check_function, chainid: str, wallet_address: str
-):
-    log.info(f"Getting {status_type} status for wallet address ({wallet_address})")
-    try:
-        provider_details = check_function(chainid, wallet_address)
-        return {"provider": provider_details if provider_details else False}
-    except ApplicationError as ae:
-        raise ae
-    except Exception as e:
-        log.error(f"Error getting {status_type} provider status: {e}")
-        raise ApplicationError(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            error_code=f"PROVIDER_00{'2' if status_type == 'on_chain' else '3'}",
-            payload={
-                "error": "Provider Status Check Error",
-                "message": f"Error getting {status_type} provider status: {e}",
-            },
-        )
-
-
 @router.get("/provider/status/onchain")
 async def provider_onchain_status_get(
     chainid: str, wallet_address: str = Depends(verify_token)
@@ -85,5 +64,26 @@ async def provider_online_status_get(
                 "error_code": "PROVIDER_005",
                 "error": "Unexpected Error",
                 "message": f"An unexpected error occurred: {str(e)}",
+            },
+        )
+
+
+async def get_provider_status(
+    status_type: str, check_function, chainid: str, wallet_address: str
+):
+    log.info(f"Getting {status_type} status for wallet address ({wallet_address})")
+    try:
+        provider_details = check_function(chainid, wallet_address)
+        return {"provider": provider_details if provider_details else False}
+    except ApplicationError as ae:
+        raise ae
+    except Exception as e:
+        log.error(f"Error getting {status_type} provider status: {e}")
+        raise ApplicationError(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_code=f"PROVIDER_00{'2' if status_type == 'on_chain' else '3'}",
+            payload={
+                "error": "Provider Status Check Error",
+                "message": f"Error getting {status_type} provider status: {e}",
             },
         )

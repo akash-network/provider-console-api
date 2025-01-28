@@ -14,12 +14,19 @@ class TaskStatus(Enum):
 
 class Task:
     def __init__(
-        self, name: str, description: str, func: Callable, *args: Any, **kwargs: Any
+        self,
+        task_id: str,
+        name: str,
+        description: str,
+        func: Callable,
+        *args: Any,
+        **kwargs: Any,
     ):
+        self.task_id = task_id
         self.name = name
         self.description = description
         self.func = func
-        self.args = args
+        self.args = args + (task_id,)
         self.kwargs = kwargs
         self.status = TaskStatus.NOT_STARTED
         self.error_message = None

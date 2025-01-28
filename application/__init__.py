@@ -37,16 +37,20 @@ def create_app() -> FastAPI:
 
     from .api import (
         action_status,
+        persistent_storage,
         provider_build,
         provider,
         verify,
+        process_logs,
     )
 
     routers = [
         action_status,
+        persistent_storage,
         provider_build,
         provider,
         verify,
+        process_logs,
     ]
 
     for router in routers:

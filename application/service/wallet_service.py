@@ -1,6 +1,7 @@
 import time
 from fastapi import status
 from paramiko import SSHException, ChannelFile
+from invoke import Responder
 
 from application.config.config import Config
 from application.exception.application_error import ApplicationError
@@ -14,14 +15,18 @@ class WalletService:
     def __init__(self):
         self.ssh_client = None
 
-    def import_wallet(self, control_input: ControlMachineInput, wallet: Wallet) -> dict:
+    def import_wallet(
+        self, control_input: ControlMachineInput, wallet: Wallet, wallet_address: str
+    ) -> dict:
         try:
             with self._get_ssh_connection(control_input):
-                mnemonic = self._decrypt_wallet_mnemonic(wallet)
                 self._install_and_verify_provider_services()
-                self._import_wallet_with_mnemonic(mnemonic, wallet.key_id)
-                self._export_and_store_key(wallet.key_id)
+                if wallet.import_mode == "auto":
+                    mnemonic = self._decrypt_wallet_mnemonic(wallet)
+                    self._import_wallet_with_mnemonic(mnemonic, wallet.key_id)
 
+                self._verify_wallt_import(wallet, wallet_address)
+                self._export_and_store_key(wallet.key_id)
             log.info(f"Wallet imported successfully for key_id: {wallet.key_id}")
             return {"success": True, "message": "Wallet imported successfully"}
 
@@ -55,6 +60,7 @@ class WalletService:
             run_ssh_command(
                 self.ssh_client,
                 f"echo '{wallet.wallet_phrase}' | base64 -d > {temp_encrypted_file}",
+                hide=True,
             )
             decrypt_command = f"openssl pkeyutl -decrypt -inkey {private_key_path} -passin pass:{wallet.key_id} -in {temp_encrypted_file} -out {temp_decrypted_file}"
             _, stderr_output = run_ssh_command(self.ssh_client, decrypt_command)
@@ -70,7 +76,7 @@ class WalletService:
                 )
 
             decrypted_phrase, _ = run_ssh_command(
-                self.ssh_client, f"cat {temp_decrypted_file}"
+                self.ssh_client, f"cat {temp_decrypted_file}", hide=True
             )
             return decrypted_phrase.strip()
         finally:
@@ -89,27 +95,33 @@ class WalletService:
             run_ssh_command(self.ssh_client, "rm -rf ~/.akash/keyring-file")
             log.info("Removed existing keyring folder")
 
+            bip39_mnemonic = Responder(
+                pattern=f"> Enter your bip39 mnemonic", response=f"{mnemonic}\n"
+            )
+            key_phrase_passphrase = Responder(
+                pattern=f"Enter keyring passphrase:", response=f"{key_id}\n"
+            )
+            re_key_phrase_passphrase = Responder(
+                pattern=f"Re-enter keyring passphrase:", response=f"{key_id}\n"
+            )
+            override = Responder(
+                pattern=f"override the existing name .*:", response=f"y\n"
+            )
+
             command = f"~/bin/provider-services keys add provider --recover --keyring-backend {Config.KEYRING_BACKEND}"
-            stdin, stdout, stderr = self.ssh_client.exec_command(command, get_pty=True)
-
-            prompts_and_responses = {
-                "Enter your bip39 mnemonic": f"{mnemonic}\n",
-                "Enter keyring passphrase:": f"{key_id}\n",
-                "Re-enter keyring passphrase:": f"{key_id}\n",
-                "override the existing name": "y\n",
-            }
-
-            self._handle_prompts(stdin, stdout, prompts_and_responses)
-
-            if stdout.channel.recv_exit_status() != 0:
-                raise ApplicationError(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    error_code="WAL_007",
-                    payload={
-                        "error": "Wallet Import Error",
-                        "message": f"Failed to import wallet: {stderr.read().decode('utf-8').strip()}",
-                    },
-                )
+            run_ssh_command(
+                self.ssh_client,
+                command,
+                False,
+                pty=True,
+                hide=True,
+                watchers=[
+                    bip39_mnemonic,
+                    key_phrase_passphrase,
+                    re_key_phrase_passphrase,
+                    override,
+                ],
+            )
 
             log.info("Wallet imported successfully using mnemonic")
 
@@ -171,21 +183,61 @@ class WalletService:
                 },
             )
 
-    def _export_and_store_key(self, key_id: str) -> None:
+    def _verify_wallt_import(self, wallet: Wallet, wallet_address: str) -> None:
         try:
-            export_command = f"~/bin/provider-services keys export provider --keyring-backend {Config.KEYRING_BACKEND}"
-            stdin, stdout, stderr = self.ssh_client.exec_command(
-                export_command, get_pty=True
+            key_phrase_passphrase = Responder(
+                pattern=f"Enter keyring passphrase:", response=f"{wallet.key_id}\n"
+            )
+            result, _ = run_ssh_command(
+                self.ssh_client,
+                f"~/bin/provider-services keys show provider --keyring-backend {Config.KEYRING_BACKEND} -a",
+                False,
+                pty=True,
+                hide=True,
+                watchers=[key_phrase_passphrase],
+            )
+            keyring_address = result.split("\n")[1].replace("\r", "")
+            if keyring_address != wallet_address:
+                raise ApplicationError(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    error_code="WAL_013",
+                    payload={
+                        "error": "Wallet Verification Error",
+                        "message": "Wallet address does not match",
+                    },
+                )
+        except ApplicationError as ae:
+            raise ae
+        except Exception as e:
+            raise ApplicationError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                error_code="WAL_012",
+                payload={
+                    "error": "Wallet Verification Error",
+                    "message": f"Error verifying wallet import: {str(e)}",
+                },
             )
 
-            prompts_and_responses = {
-                "Enter passphrase to encrypt the exported key:": f"{key_id}\n",
-                "Enter keyring passphrase:": f"{key_id}\n",
-            }
+    def _export_and_store_key(self, key_id: str) -> None:
+        try:
 
-            self._handle_prompts(stdin, stdout, prompts_and_responses)
+            export_passphrase_prompt = Responder(
+                pattern=f"Enter passphrase to encrypt the exported key:",
+                response=f"{key_id}\n",
+            )
+            passphrase_prompt = Responder(
+                pattern=f"Enter keyring passphrase:", response=f"{key_id}\n"
+            )
 
-            exported_key = stdout.read().decode("utf-8").strip()
+            export_command = f"~/bin/provider-services keys export provider --keyring-backend {Config.KEYRING_BACKEND}"
+            exported_key, _ = run_ssh_command(
+                self.ssh_client,
+                export_command,
+                False,
+                pty=True,
+                watchers=[passphrase_prompt, export_passphrase_prompt],
+                hide=True,
+            )
 
             if not exported_key:
                 raise ApplicationError(

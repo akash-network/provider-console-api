@@ -31,6 +31,7 @@ class Config:
     KEYRING_BACKEND = environ.get("KEYRING_BACKEND", "file")
     AKASH_VERSION = environ.get("AKASH_VERSION", "v0.36.0")
     AKASH_VERSION_TESTNET = environ.get("AKASH_VERSION_TESTNET", "v0.36.0")
+    INGRESS_NGINX_VERSION = environ.get("INGRESS_NGINX_VERSION", "4.11.3")
     PROVIDER_SERVICES_VERSION = environ.get("PROVIDER_SERVICES_VERSION", "v0.6.4")
     PROVIDER_SERVICES_VERSION_TESTNET = environ.get(
         "PROVIDER_SERVICES_VERSION_TESTNET", "v0.6.4"
@@ -39,11 +40,18 @@ class Config:
         "PROVIDER_PRICE_SCRIPT_URL",
         "https://raw.githubusercontent.com/akash-network/helm-charts/main/charts/akash-provider/scripts/price_script_generic.sh",
     )
+    NVIDIA_DEVICE_PLUGIN_VERSION = environ.get("NVIDIA_DEVICE_PLUGIN_VERSION", "0.14.5")
+    ROOK_CEPH_VERSION = environ.get("ROOK_CEPH_VERSION", "1.15.3")
 
     # Authentication
     HOST_NAME = environ.get("HOST_NAME")
     SECURITY_HOST = environ.get("SECURITY_HOST")
     PUBLIC_KEY = environ.get("PUBLIC_KEY")
+
+    # Redis
+    REDIS_URI = environ.get("REDIS_URI")
+    REDIS_PORT = environ.get("REDIS_PORT")
+    REDIS_PASSWORD = environ.get("REDIS_PASSWORD")
 
     # Misc
     HELM_VERSION = environ.get("HELM_VERSION", "v3.11.0")

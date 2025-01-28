@@ -46,6 +46,7 @@ class ClusterNodeService:
                 control_ssh_client, worker_input
             ) as worker_ssh_client:
                 system_info = self._gather_system_info(worker_ssh_client)
+                self._setup_ssh_keys(control_ssh_client, worker_ssh_client)
                 system_info["has_sudo"] = self._check_sudo_rights(worker_ssh_client)
 
                 log.info("Completed gathering worker node information")
@@ -59,7 +60,7 @@ class ClusterNodeService:
 
     def _gather_system_info(self, ssh_client) -> Dict:
         script = self._get_system_info_script()
-        stdout, _ = run_ssh_command(ssh_client, script, check_exit_status=True)
+        stdout, _ = run_ssh_command(ssh_client, script)
 
         try:
             system_info = json.loads(stdout)
@@ -245,6 +246,30 @@ EOF"""
         run_ssh_command(ssh_client, f"echo '{pem.decode()}' > {private_key_path}")
         run_ssh_command(ssh_client, f"chmod 600 {private_key_path}")
         run_ssh_command(ssh_client, f"echo '{public_key.decode()}' > {public_key_path}")
+
+    def _setup_ssh_keys(self, control_ssh_client, worker_ssh_client) -> None:
+        # Check if ed25519 key exists on control machine
+        check_key_cmd = "test -f ~/.ssh/id_ed25519 && echo 'exists' || echo 'not found'"
+        stdout, _ = run_ssh_command(control_ssh_client, check_key_cmd)
+
+        if "not found" in stdout:
+            log.info("Generating new ed25519 key pair on control machine")
+            run_ssh_command(
+                control_ssh_client, "ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ''"
+            )
+
+        # Ensure authorized_keys file exists and has correct permissions
+        run_ssh_command(worker_ssh_client, "mkdir -p ~/.ssh && chmod 700 ~/.ssh")
+
+        # Get public key from control machine and add it to worker's authorized_keys
+        stdout, _ = run_ssh_command(control_ssh_client, "cat ~/.ssh/id_ed25519.pub")
+        run_ssh_command(
+            worker_ssh_client,
+            f"echo '{stdout.strip()}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys",
+        )
+        log.info(
+            "Added control machine's ed25519 public key to worker's authorized_keys"
+        )
 
     def _create_application_error(
         self, error_code: str, message: str

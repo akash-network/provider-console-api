@@ -1,14 +1,17 @@
-import paramiko
 import tempfile
 import os
+from fabric import Connection
+from invoke.exceptions import UnexpectedExit, AuthFailure
 from typing import Union, Tuple
 from fastapi import status
 from application.exception.application_error import ApplicationError
 from application.model.machine_input import ControlMachineInput, WorkerNodeInput
 from application.utils.logger import log
+from application.utils.redis import get_redis_client
+from application.config.mongodb import logs_collection
 
 # Constants
-SSH_TIMEOUT: int = 30
+SSH_TIMEOUT: int = 60
 LOCAL_ADDR: Tuple[str, int] = ("", 0)
 
 
@@ -39,17 +42,33 @@ class SSHConnectionError(ApplicationError):
 
 def get_ssh_client(
     machine_input: Union[ControlMachineInput, WorkerNodeInput]
-) -> paramiko.SSHClient:
+) -> Connection:
     """Establish an SSH connection to the specified machine."""
     log.info(f"Establishing SSH connection to {machine_input.hostname}")
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
         connection_params = _prepare_connection_params(machine_input)
-        ssh_client.connect(**connection_params)
+        connect_kwargs = {
+            "timeout": SSH_TIMEOUT,
+        }
+
+        if "key_filename" in connection_params:
+            connect_kwargs["key_filename"] = connection_params["key_filename"]
+            if "passphrase" in connection_params:
+                connect_kwargs["passphrase"] = connection_params["passphrase"]
+        elif "password" in connection_params:
+            connect_kwargs["password"] = connection_params["password"]
+
+        connection = Connection(
+            host=connection_params["hostname"],
+            user=connection_params["username"],
+            port=connection_params["port"],
+            connect_kwargs=connect_kwargs,
+        )
+        # Test the connection
+        connection.open()
         log.info(f"SSH connection established to {machine_input.hostname}")
-        return ssh_client
-    except paramiko.AuthenticationException as auth_ex:
+        return connection
+    except AuthFailure as auth_ex:
         log.error(
             f"SSH authentication failed for {machine_input.hostname}: {str(auth_ex)}"
         )
@@ -117,75 +136,115 @@ def _handle_keyfile(keyfile) -> tempfile.NamedTemporaryFile:
 
 
 def run_ssh_command(
-    ssh_client: paramiko.SSHClient, command: str, check_exit_status: bool = True
+    connection: Connection,
+    command: str,
+    check_exit_status: bool = True,
+    task_id: str = None,
+    **kwargs,
 ) -> Tuple[str, str]:
     """Run an SSH command and return the output."""
-    log.debug(f"Running SSH command: {command}")
-    stdin, stdout, stderr = ssh_client.exec_command(command)
-    exit_status = stdout.channel.recv_exit_status()
-
-    stdout_str = stdout.read().decode("utf-8").strip()
-    stderr_str = stderr.read().decode("utf-8").strip()
-
-    if check_exit_status and exit_status != 0:
-        log.error(f"SSH command failed: {command}. Error: {stderr_str}")
-        raise ApplicationError(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            error_code="SSH_003",
-            payload={
-                "error": "SSH Command Failed",
-                "message": f"Command '{command}' failed with error: {stderr_str}",
-            },
-        )
-
-    log.debug(f"SSH command completed with status {exit_status}: {command}")
-    return stdout_str, stderr_str
-
-
-def connect_to_worker_node(
-    control_ssh_client: paramiko.SSHClient, worker_input: WorkerNodeInput
-) -> paramiko.SSHClient:
-    """Establish an SSH connection to the worker node through the control node."""
-    log.info(
-        f"Establishing SSH connection to worker node {worker_input.hostname} through control node"
-    )
     try:
-        transport = control_ssh_client.get_transport()
-        dest_addr = (worker_input.hostname, worker_input.port)
-        local_addr = LOCAL_ADDR
-        channel = transport.open_channel("direct-tcpip", dest_addr, local_addr)
+        redis_client = get_redis_client()
 
-        worker_ssh_client = paramiko.SSHClient()
-        worker_ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        result = connection.run(command, warn=not check_exit_status, **kwargs)
+        stdout_str = result.stdout.strip()
+        stderr_str = result.stderr.strip()
 
-        connection_params = _prepare_connection_params(worker_input)
-        connection_params["sock"] = channel
+        # Stream logs to Redis and MongoDB if task_id is provided
+        if task_id:
 
-        worker_ssh_client.connect(**connection_params)
+            # Prepare logs for MongoDB
+            logs_to_append = []
 
-        log.info(f"SSH connection established to worker node {worker_input.hostname}")
-        return worker_ssh_client
-    except paramiko.AuthenticationException as auth_ex:
-        log.error(
-            f"SSH authentication failed for worker node {worker_input.hostname}: {str(auth_ex)}"
-        )
-        raise ApplicationError(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            error_code="AUTH_003",
-            payload={
-                "error": "Worker Authentication Failed",
-                "message": f"Authentication failed for worker node: {str(auth_ex)}",
-            },
-        )
-    except Exception as e:
-        log.error(
-            f"SSH connection error for worker node {worker_input.hostname}: {str(e)}"
-        )
+            if stdout_str:
+                for line in result.stdout.splitlines():
+                    # Add to Redis stream
+                    redis_client.xadd(f"task:{task_id}", {"stdout": line})
+                    # Prepare for MongoDB
+                    logs_to_append.append(
+                        {
+                            "type": "stdout",
+                            "message": line,
+                        }
+                    )
+
+            if stderr_str:
+                for line in result.stderr.splitlines():
+                    # Add to Redis stream
+                    redis_client.xadd(f"task:{task_id}", {"stderr": line})
+                    # Prepare for MongoDB
+                    logs_to_append.append(
+                        {
+                            "type": "stderr",
+                            "message": line,
+                        }
+                    )
+
+            # Update MongoDB document with new logs
+            if logs_to_append:
+                logs_collection.update_one(
+                    {"task_id": task_id},
+                    {
+                        "$push": {"logs": {"$each": logs_to_append}},
+                        "$setOnInsert": {"task_id": task_id},
+                    },
+                    upsert=True,
+                )
+
+        return stdout_str, stderr_str
+    except UnexpectedExit as e:
+        error_message = e.result.stderr if e.result.stderr != "" else str(e)
         raise ApplicationError(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             error_code="SSH_004",
             payload={
-                "error": "Worker SSH Connection Error",
-                "message": f"SSH connection error for worker node: {str(e)}",
+                "error": "SSH Command Failed",
+                "message": f"Command '{command}' failed with error: {error_message}",
             },
         )
+
+
+def connect_to_worker_node(
+    control_ssh_client: Connection, worker_input: WorkerNodeInput
+) -> Connection:
+    """Establish an SSH connection to the worker node through the control node."""
+    log.info(
+        f"Establishing SSH connection to worker node({worker_input.hostname}) through control node({control_ssh_client.host})"
+    )
+    try:
+        transport = control_ssh_client.transport
+        dest_addr = (worker_input.hostname, worker_input.port)
+        local_addr = LOCAL_ADDR
+        channel = transport.open_channel("direct-tcpip", dest_addr, local_addr)
+
+        connection_params = _prepare_connection_params(worker_input)
+        connect_kwargs = {"timeout": SSH_TIMEOUT, "sock": channel}
+
+        if "key_filename" in connection_params:
+            connect_kwargs["key_filename"] = connection_params["key_filename"]
+            if "passphrase" in connection_params:
+                connect_kwargs["passphrase"] = connection_params["passphrase"]
+        elif "password" in connection_params:
+            connect_kwargs["password"] = connection_params["password"]
+
+        connection = Connection(
+            host=connection_params["hostname"],
+            user=connection_params["username"],
+            port=connection_params["port"],
+            connect_kwargs=connect_kwargs,
+        )
+
+        # Test the connection
+        connection.open()
+        log.info(f"SSH connection established to worker node {worker_input.hostname}")
+        return connection
+    except AuthFailure as auth_ex:
+        log.error(
+            f"SSH authentication failed for worker node {worker_input.hostname}: {str(auth_ex)}"
+        )
+        raise SSHAuthenticationError(str(auth_ex))
+    except Exception as e:
+        log.error(
+            f"SSH connection error for worker node {worker_input.hostname}: {str(e)}"
+        )
+        raise SSHConnectionError(str(e))

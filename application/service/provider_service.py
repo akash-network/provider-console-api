@@ -1,5 +1,7 @@
 from fastapi import status
 import base64
+import json
+import time
 
 from application.exception.application_error import ApplicationError
 from application.config.config import Config
@@ -9,7 +11,7 @@ from application.utils.ssh_utils import run_ssh_command
 
 class ProviderService:
 
-    async def _install_helm(self, ssh_client):
+    async def _install_helm(self, ssh_client, task_id: str):
         log.info("Installing Helm...")
         helm_version = Config.HELM_VERSION
         commands = [
@@ -20,7 +22,8 @@ class ProviderService:
         ]
         try:
             for cmd in commands:
-                output, _ = run_ssh_command(ssh_client, cmd, False)
+                time.sleep(2)
+                output, _ = run_ssh_command(ssh_client, cmd, False, task_id=task_id)
             log.info("Helm installation completed successfully.")
         except Exception as e:
             log.error(f"Error during Helm installation: {str(e)}")
@@ -33,7 +36,7 @@ class ProviderService:
                 },
             )
 
-    async def _setup_helm_repos(self, ssh_client):
+    async def _setup_helm_repos(self, ssh_client, task_id: str):
         log.info("Setting up Helm repositories...")
         commands = [
             "helm repo remove akash 2>/dev/null || true",
@@ -41,11 +44,12 @@ class ProviderService:
             "helm repo update",
         ]
         for cmd in commands:
-            run_ssh_command(ssh_client, cmd)
+            time.sleep(2)
+            run_ssh_command(ssh_client, cmd, task_id=task_id)
         log.info("Helm and Akash repository setup completed.")
 
     async def _install_akash_services(
-        self, ssh_client, chain_id, provider_version, node_version
+        self, ssh_client, chain_id, provider_version, node_version, task_id: str
     ):
         log.info("Installing Akash services...")
         commands = [
@@ -57,14 +61,26 @@ class ProviderService:
                 f"helm install akash-node akash/akash-node -n akash-services --set image.tag={node_version}"
             )
         for cmd in commands:
-            run_ssh_command(ssh_client, cmd)
+            time.sleep(2)
+            run_ssh_command(ssh_client, cmd, task_id=task_id)
         log.info("Akash services installed.")
 
     async def _prepare_provider_config(
-        self, ssh_client, account_address, key_password, domain, chain_id
+        self,
+        ssh_client,
+        account_address,
+        key_password,
+        domain,
+        chain_id,
+        attributes,
+        organization,
+        pricing,
+        task_id: str,
     ):
         log.info("Preparing provider configuration...")
+        time.sleep(2)
         config_content = f"""
+cat > ~/provider/provider.yaml << EOF
 ---
 from: "{account_address}"
 key: "{self._get_base64_encoded_key(ssh_client)}"
@@ -73,26 +89,49 @@ domain: "{domain}"
 node: "http://akash-node-1:26657"
 withdrawalperiod: 12h
 chainid: "{chain_id}"
+organization: "{organization}"
+attributes:
+"""
+        # Format attributes
+        for attr in attributes:
+            key = attr.key
+            value = attr.value
+            config_content += f'  - key: {key}\n    value: "{value}"\n'
+
+        # Add pricing information
+        config_content += f"""
+price_target_cpu: {pricing.cpu}
+price_target_memory: {pricing.memory}
+price_target_hd_ephemeral: {pricing.storage}
+price_target_gpu_mappings: '*={pricing.gpu}'
+price_target_endpoint: {pricing.endpointBidPrice}
+price_target_hd_pers_hdd: {pricing.persistentStorage}
+price_target_hd_pers_nvme: {pricing.persistentStorage}
+price_target_hd_pers_ssd: {pricing.persistentStorage}
+price_target_ip: {pricing.ipScalePrice}
+EOF
 """
         run_ssh_command(
-            ssh_client,
-            f"mkdir -p ~/provider && echo '{config_content}' > ~/provider/provider.yaml",
+            ssh_client, f"mkdir -p ~/provider && {config_content}", task_id=task_id
         )
         log.info("Provider configuration prepared.")
 
-    async def _install_akash_crds(self, ssh_client, provider_version):
+    async def _install_akash_crds(self, ssh_client, provider_version, task_id: str):
         log.info("Installing CRDs for Akash provider...")
+        time.sleep(5)
         run_ssh_command(
             ssh_client,
             f"kubectl apply -f https://raw.githubusercontent.com/akash-network/provider/v{provider_version}/pkg/apis/akash.network/crd.yaml",
+            task_id=task_id,
         )
         log.info("Akash provider CRDs installed.")
 
-    async def _install_akash_provider(self, ssh_client, provider_version):
+    async def _install_akash_provider(self, ssh_client, provider_version, task_id: str):
         log.info("Installing Akash provider...")
+        time.sleep(5)
         try:
             # Get the pricing script content and encode it
-            pricing_script = self._get_pricing_script(ssh_client)
+            pricing_script = self._get_pricing_script(ssh_client, task_id)
             pricing_script_b64 = (
                 base64.b64encode(pricing_script.encode()).decode()
                 if pricing_script
@@ -106,7 +145,7 @@ chainid: "{chain_id}"
                 install_cmd += f" --set bidpricescript='{pricing_script_b64}'"
 
             # Run the Helm install command
-            run_ssh_command(ssh_client, install_cmd)
+            run_ssh_command(ssh_client, install_cmd, task_id=task_id)
 
             log.info("Akash provider installation completed.")
         except Exception as e:
@@ -119,17 +158,21 @@ chainid: "{chain_id}"
                 },
             )
 
-    def _get_pricing_script(self, ssh_client):
+    def _get_pricing_script(self, ssh_client, task_id):
         try:
             # Check if the pricing script exists
             result = run_ssh_command(
                 ssh_client,
                 "test -f ~/provider/price_script_generic.sh && echo 'exists' || echo 'not found'",
+                task_id=task_id,
             )
             if "exists" in result[0]:
                 # If it exists, read its content
+                time.sleep(2)
                 content = run_ssh_command(
-                    ssh_client, "cat ~/provider/price_script_generic.sh"
+                    ssh_client,
+                    "cat ~/provider/price_script_generic.sh",
+                    task_id=task_id,
                 )[0]
                 return content.strip()
             else:
@@ -140,9 +183,13 @@ chainid: "{chain_id}"
                     run_ssh_command(
                         ssh_client,
                         f"wget {pricing_script_url} -O ~/provider/price_script_generic.sh",
+                        task_id=task_id,
                     )
+                    time.sleep(2)
                     content = run_ssh_command(
-                        ssh_client, "cat ~/provider/price_script_generic.sh"
+                        ssh_client,
+                        "cat ~/provider/price_script_generic.sh",
+                        task_id=task_id,
                     )[0]
                     return content.strip()
                 log.info("Pricing script not found. Proceeding without it.")
@@ -153,9 +200,10 @@ chainid: "{chain_id}"
             )
             return None
 
-    async def _install_nginx_ingress(self, ssh_client):
+    async def _install_nginx_ingress(self, ssh_client, task_id: str):
         log.info("Installing NGINX Ingress Controller...")
         ingress_config = """
+cat > ingress-nginx-custom.yaml << EOF
 controller:
   service:
     type: ClusterIP
@@ -177,65 +225,73 @@ controller:
 tcp:
   "8443": "akash-services/akash-provider:8443"
   "8444": "akash-services/akash-provider:8444"
+EOF
 """
-        run_ssh_command(
-            ssh_client, f"echo '{ingress_config}' > ~/ingress-nginx-custom.yaml"
-        )
+        time.sleep(2)
+        run_ssh_command(ssh_client, ingress_config, task_id=task_id)
         commands = [
             "helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx",
-            "helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version 4.10.0 --namespace ingress-nginx --create-namespace -f ~/ingress-nginx-custom.yaml",
+            f"helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version {Config.INGRESS_NGINX_VERSION} --namespace ingress-nginx --create-namespace -f ~/ingress-nginx-custom.yaml",
             "kubectl label ns ingress-nginx app.kubernetes.io/name=ingress-nginx app.kubernetes.io/instance=ingress-nginx",
             "kubectl label ingressclass akash-ingress-class akash.network=true",
         ]
         for cmd in commands:
-            run_ssh_command(ssh_client, cmd)
+            time.sleep(2)
+            run_ssh_command(ssh_client, cmd, task_id=task_id)
         log.info("NGINX Ingress Controller installation completed.")
 
-    async def _configure_gpu_support(self, ssh_client, install_gpu_driver_nodes):
+    async def _configure_gpu_support(
+        self, ssh_client, install_gpu_driver_nodes, task_id: str
+    ):
         try:
             log.info("Configuring NVIDIA Runtime Engine...")
 
             nvidia_runtime_class_config = """
+cat > nvidia-runtime-class.yaml << EOF
 kind: RuntimeClass
 apiVersion: node.k8s.io/v1
 metadata:
-name: nvidia
+  name: nvidia
 handler: nvidia
+EOF
 """
+            run_ssh_command(ssh_client, nvidia_runtime_class_config, task_id=task_id)
+            time.sleep(2)
             run_ssh_command(
                 ssh_client,
-                f"echo '{nvidia_runtime_class_config}' > ~/nvidia-runtime-class.yaml",
+                "kubectl apply -f ~/nvidia-runtime-class.yaml",
+                task_id=task_id,
             )
-
-            run_ssh_command(ssh_client, "kubectl apply -f ~/nvidia-runtime-class.yaml")
 
             log.info("Labeling $node for NVIDIA support...")
 
             for node in install_gpu_driver_nodes:
+                time.sleep(2)
                 log.info(f"Labeling {node} for NVIDIA support...")
                 label_command = f"kubectl label nodes {node} allow-nvdp=true"
-                run_ssh_command(ssh_client, label_command)
+                run_ssh_command(ssh_client, label_command, task_id=task_id)
 
             log.info("Adding NVIDIA Device Plugin Helm repository...")
             run_ssh_command(
                 ssh_client,
                 "helm repo add nvdp https://nvidia.github.io/k8s-device-plugin",
+                task_id=task_id,
             )
-
+            time.sleep(2)
             log.info("Updating Helm repositories...")
-            run_ssh_command(ssh_client, "helm repo update")
+            run_ssh_command(ssh_client, "helm repo update", task_id=task_id)
 
             log.info("Installing NVIDIA Device Plugin...")
-            nvidia_device_plugin_command = """
+            nvidia_device_plugin_command = f"""
 helm upgrade -i nvdp nvdp/nvidia-device-plugin \
 --namespace nvidia-device-plugin \
 --create-namespace \
---version 0.14.5 \
+--version {Config.NVIDIA_DEVICE_PLUGIN_VERSION} \
 --set runtimeClassName="nvidia" \
 --set deviceListStrategy=volume-mounts \
 --set-string nodeSelector.allow-nvdp="true"
 """
-            run_ssh_command(ssh_client, nvidia_device_plugin_command)
+            run_ssh_command(ssh_client, nvidia_device_plugin_command, task_id=task_id)
             log.info("NVIDIA Device Plugin installation completed.")
             log.info("NVIDIA Runtime Engine configuration completed.")
         except Exception as e:
@@ -248,6 +304,55 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
                     "message": f"Failed to configure NVIDIA Runtime Engine: {str(e)}",
                 },
             )
+
+    async def update_provider_attributes(self, ssh_client, attributes, task_id: str):
+        # Construct the attributes string for yq
+        attr_string = ",".join(
+            [
+                f'{{"key":"{attr["key"]}","value":"{attr["value"]}"}}'
+                for attr in attributes
+            ]
+        )
+        yq_command = (
+            f"yq eval '.attributes = [{attr_string}]' -i ~/provider/provider.yaml"
+        )
+
+        run_ssh_command(ssh_client, yq_command, task_id=task_id)
+
+        await self.restart_provider_service(ssh_client)
+        log.info("Provider attributes updated successfully.")
+
+    async def get_provider_pricing(self, ssh_client):
+        command = """yq '. | with_entries(select(.key | test("^price_target_")))' ~/provider/provider.yaml -o json | jq -c ."""
+        output, _ = run_ssh_command(ssh_client, command)
+        return json.loads(output.strip())
+
+    async def update_provider_pricing(self, ssh_client, pricing, task_id: str):
+        run_ssh_command(
+            ssh_client,
+            f"""yq eval '.price_target_cpu = {pricing['cpu']} |
+         .price_target_memory = {pricing['memory']} |
+         .price_target_hd_ephemeral = {pricing['storage']} |
+         .price_target_gpu_mappings = "*={pricing['gpu']}" |
+         .price_target_endpoint = {pricing['endpointBidPrice']} |
+         .price_target_hd_pers_hdd = {pricing['persistentStorage']} |
+         .price_target_hd_pers_nvme = {pricing['persistentStorage']} |
+         .price_target_hd_pers_ssd = {pricing['persistentStorage']} |
+         .price_target_ip = {pricing['ipScalePrice']}' -i ~/provider/provider.yaml
+""",
+            task_id=task_id,
+        )
+        await self.restart_provider_service(ssh_client)
+        log.info("Provider pricing updated successfully.")
+
+    async def update_provider_domain(self, ssh_client, domain, task_id: str):
+        run_ssh_command(
+            ssh_client,
+            f"yq eval '.domain = \"{domain}\"' -i ~/provider/provider.yaml",
+            task_id=task_id,
+        )
+        await self.restart_provider_service(ssh_client)
+        log.info("Provider domain updated successfully.")
 
     def _get_base64_encoded_key(self, ssh_client):
         log.info("Retrieving and encoding the key...")
@@ -265,5 +370,28 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
                 payload={
                     "error": "Key Retrieval Failed",
                     "message": f"Failed to retrieve or encode the key: {str(e)}",
+                },
+            )
+
+    async def restart_provider_service(self, ssh_client):
+        log.info("Restarting provider service...")
+        try:
+            # Get base64 encoded pricing script
+            command = "cat ~/provider/price_script_generic.sh | openssl base64 -A"
+            output, _ = run_ssh_command(ssh_client, command)
+            pricing_script_b64 = output.strip()
+
+            # Upgrade helm chart with the pricing script
+            command = f'helm upgrade --install akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript="{pricing_script_b64}" --set image.tag=0.6.4'
+            run_ssh_command(ssh_client, command)
+            log.info("Provider service restarted successfully.")
+        except Exception as e:
+            log.error(f"Error restarting provider service: {str(e)}")
+            raise ApplicationError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                error_code="PROVIDER_004",
+                payload={
+                    "error": "Provider Service Restart Failed",
+                    "message": f"Failed to restart provider service: {str(e)}",
                 },
             )

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator, field_validator
-from typing import List, Optional
+from typing import List, Optional, Literal
 from typing import Optional
 from fastapi import UploadFile
 from base64 import b64decode
@@ -11,7 +11,7 @@ class Node(BaseModel):
     username: str
     port: int = 22
     password: Optional[str] = None
-    keyfile: Optional[str] = None
+    keyfile: Optional[UploadFile] = None
     passphrase: Optional[str] = None
     install_gpu_drivers: bool = False
 
@@ -56,9 +56,8 @@ class Node(BaseModel):
 
 
 class Attribute(BaseModel):
-    key: Optional[str] = None
+    key: str
     value: str
-    customKey: Optional[str] = None
 
 
 class Pricing(BaseModel):
@@ -87,6 +86,7 @@ class Wallet(BaseModel):
     key_id: str
     wallet_phrase: Optional[str]
     override_seed: Optional[bool] = False
+    import_mode: Literal["auto", "manual"]
 
 
 class ProviderBuildInput(BaseModel):

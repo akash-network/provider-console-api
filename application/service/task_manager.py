@@ -29,6 +29,7 @@ class TaskManager:
             "status": TaskStatus.NOT_STARTED.value,
             "tasks": [
                 {
+                    "id": task.task_id,
                     "name": task.name,
                     "description": task.description,
                     "status": TaskStatus.NOT_STARTED.value,
@@ -114,6 +115,7 @@ class TaskManager:
 
             tasks = [
                 {
+                    "id": task["id"],
                     "title": task["name"],
                     "description": task["description"],
                     "status": task["status"],
