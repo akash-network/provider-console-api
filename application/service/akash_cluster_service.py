@@ -393,6 +393,7 @@ class AkashClusterService:
                 "Configure and label StorageClass for Akash",
                 self.persistent_storage_service._configure_storage_class,
                 ssh_client,
+                storage_info,
             ),
         ]
         return persistent_storage_tasks
