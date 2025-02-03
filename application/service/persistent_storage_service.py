@@ -141,8 +141,11 @@ class PersistentStorageService:
                 ssh_client,
                 "helm repo add rook-release https://charts.rook.io/release",
                 check_exit_status=True,
+                task_id=task_id,
             )
-            run_ssh_command(ssh_client, "helm repo update", check_exit_status=True)
+            run_ssh_command(
+                ssh_client, "helm repo update", check_exit_status=True, task_id=task_id
+            )
             log.info("Rook-Ceph Helm repository added successfully")
         except Exception as e:
             log.error(f"Failed to add Rook-Ceph Helm repository: {str(e)}")
@@ -152,7 +155,9 @@ class PersistentStorageService:
         """Install Rook-Ceph operator using Helm."""
         try:
             cmd = f"helm install --create-namespace -n rook-ceph rook-ceph rook-release/rook-ceph --version {Config.ROOK_CEPH_VERSION}"
-            run_ssh_command(ssh_client, cmd, check_exit_status=True)
+            run_ssh_command(
+                ssh_client, cmd, check_exit_status=True, task_id=task_id
+            )
             log.info("Rook-Ceph operator installed successfully")
         except Exception as e:
             log.error(f"Failed to install Rook-Ceph operator: {str(e)}")
@@ -162,6 +167,7 @@ class PersistentStorageService:
         log.info("Setting up Rook-Ceph cluster values...")
 
         nodes = storage_info["nodes"]
+        is_single_node = len(nodes) == 1
 
         # Generate nodes configuration dynamically
         nodes_config = []
@@ -188,25 +194,26 @@ class PersistentStorageService:
             ]
         )
 
+        # Set configuration based on number of nodes
         values_content = f"""operatorNamespace: rook-ceph
 
 configOverride: |
   [global]
   osd_pool_default_pg_autoscale_mode = on
-  osd_pool_default_size = 3
-  osd_pool_default_min_size = 2
+  osd_pool_default_size = {1 if is_single_node else 3}
+  osd_pool_default_min_size = {1 if is_single_node else 2}
 
 cephClusterSpec:
   mon:
-    count: 3
+    count: {1 if is_single_node else 3}
   mgr:
-    count: 2
+    count: {1 if is_single_node else 2}
 
   storage:
     useAllNodes: false
     useAllDevices: false
     config:
-      osdsPerDevice: "2"
+      osdsPerDevice: "{1 if is_single_node else 2}"
     nodes:
 {nodes_yaml}
 
@@ -215,9 +222,9 @@ cephBlockPools:
     spec:
       failureDomain: host
       replicated:
-        size: 3
+        size: {1 if is_single_node else 3}
       parameters:
-        min_size: "2"
+        min_size: "{1 if is_single_node else 2}"
         bulk: "true"
     storageClass:
       enabled: true
@@ -244,11 +251,11 @@ toolbox:
 
         # Check if file exists
         check_command = "rm -rf ~/provider/rook-ceph-cluster.values.yml"
-        output, _ = run_ssh_command(ssh_client, check_command)
+        run_ssh_command(ssh_client, check_command, task_id=task_id)
 
         log.info("Creating Rook-Ceph cluster values file...")
         create_command = f"cat > ~/provider/rook-ceph-cluster.values.yml << EOF\n{values_content}\nEOF"
-        run_ssh_command(ssh_client, create_command)
+        run_ssh_command(ssh_client, create_command, task_id=task_id)
         log.info("Rook-Ceph cluster values file created successfully.")
 
     def _install_rook_cluster(self, ssh_client, task_id: str):
@@ -258,12 +265,34 @@ toolbox:
             cmd = f"""helm install --create-namespace -n rook-ceph rook-ceph-cluster \
                 --set operatorNamespace=rook-ceph rook-release/rook-ceph-cluster \
                 --version {Config.ROOK_CEPH_VERSION} -f ~/provider/rook-ceph-cluster.values.yml"""
-            run_ssh_command(ssh_client, cmd, check_exit_status=True)
+            run_ssh_command(ssh_client, cmd, check_exit_status=True, task_id=task_id)
             log.info("Rook-Ceph cluster installed successfully")
         except Exception as e:
             log.error(f"Failed to install Rook-Ceph cluster: {str(e)}")
             raise
 
-    def _configure_storage_class(self, ssh_client, task_id: str):
+    def _configure_storage_class(self, ssh_client, storage_info: dict, task_id: str):
         """Configure storage class for Akash."""
-        pass
+        try:
+            # Label the storage class for Akash integration
+            label_cmd = f"kubectl label sc {storage_info['storage_class']} akash.network=true"
+            run_ssh_command(ssh_client, label_cmd, check_exit_status=True, task_id=task_id)
+            log.info(f"StorageClass {storage_info['storage_class']} labeled for Akash integration")
+
+            # Label the node with storage capabilities
+            node_label_cmd = f"""kubectl label node node1 \
+                akash.network/capabilities.storage.class.{storage_info['storage_class']}=1 \
+                akash.network/capabilities.storage.class.default=1 \
+                --overwrite"""
+            run_ssh_command(ssh_client, node_label_cmd, check_exit_status=True, task_id=task_id)
+            log.info("Node labeled with storage capabilities")
+
+            # Update the inventory operator with the new storage class
+            update_cmd = f"""helm upgrade inventory-operator akash/akash-inventory-operator -n akash-services \
+                --set inventoryConfig.cluster_storage[0]=default,inventoryConfig.cluster_storage[1]={storage_info['storage_class']},inventoryConfig.cluster_storage[2]=ram"""
+            run_ssh_command(ssh_client, update_cmd, check_exit_status=True, task_id=task_id)
+            
+            log.info(f"Inventory operator updated to use storage class {storage_info['storage_class']}")
+        except Exception as e:
+            log.error(f"Failed to configure storage class: {str(e)}")
+            raise
