@@ -187,6 +187,7 @@ class AkashClusterService:
         organization = provider_build_input.provider.config.organization
         attributes = provider_build_input.provider.attributes
         pricing = provider_build_input.provider.pricing
+        email = provider_build_input.provider.config.email
 
         # Initialize an empty list to store nodes that require GPU driver installation
         install_gpu_driver_nodes = []
@@ -235,6 +236,7 @@ class AkashClusterService:
                 attributes,
                 organization,
                 pricing,
+                email,
             ),
             Task(
                 str(uuid4()),
