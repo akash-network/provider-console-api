@@ -75,6 +75,7 @@ class ProviderService:
         attributes,
         organization,
         pricing,
+        email,
         task_id: str,
     ):
         log.info("Preparing provider configuration...")
@@ -90,6 +91,7 @@ node: "http://akash-node-1:26657"
 withdrawalperiod: 12h
 chainid: "{chain_id}"
 organization: "{organization}"
+email: "{email}"
 attributes:
 """
         # Format attributes
