@@ -1,0 +1,36 @@
+# This workflow is used to build the image for the provider build service
+
+name: Build Image
+
+# This workflow is triggered when a release is created
+on:
+  release:
+    types: [released]
+
+  workflow_dispatch:
+
+env:
+  IMAGE_TAG: ${{ github.event.release.tag_name }}
+
+jobs:
+  build:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build, tag, and push image to GitHub Container Registry
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}
+        run: |
+          docker build -t $IMAGE_NAME:$IMAGE_TAG .
+          docker push $IMAGE_NAME:$IMAGE_TAG
+
+      - name: Log out of GitHub Container Registry
+        if: always()
+        run: docker logout ghcr.io
