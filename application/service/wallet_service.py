@@ -1,6 +1,4 @@
-import time
 from fastapi import status
-from paramiko import SSHException, ChannelFile
 from invoke import Responder
 
 from application.config.config import Config
@@ -125,15 +123,6 @@ class WalletService:
 
             log.info("Wallet imported successfully using mnemonic")
 
-        except SSHException as e:
-            raise ApplicationError(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                error_code="WAL_008",
-                payload={
-                    "error": "Wallet Import Error",
-                    "message": f"SSH error during wallet import: {str(e)}",
-                },
-            )
         except Exception as e:
             raise ApplicationError(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -141,45 +130,6 @@ class WalletService:
                 payload={
                     "error": "Wallet Import Error",
                     "message": f"Error during wallet import: {str(e)}",
-                },
-            )
-
-    def _handle_prompts(
-        self, stdin: ChannelFile, stdout: ChannelFile, prompts_and_responses: dict
-    ) -> None:
-        timeout = 60
-        start_time = time.time()
-
-        while prompts_and_responses and (time.time() - start_time < timeout):
-            if stdout.channel.recv_ready():
-                output = stdout.channel.recv(1024).decode("utf-8")
-                log.debug(f"Received output: {output}")
-
-                for prompt, response in list(prompts_and_responses.items()):
-                    if prompt in output:
-                        log.info(f"Responding to prompt: {prompt}")
-                        stdin.write(response)
-                        stdin.flush()
-                        del prompts_and_responses[prompt]
-                        break
-
-            if stdout.channel.exit_status_ready():
-                break
-
-            time.sleep(0.1)
-
-        if prompts_and_responses:
-            log.warning(
-                f"Some prompts were not handled: {', '.join(prompts_and_responses.keys())}"
-            )
-
-        if time.time() - start_time >= timeout:
-            raise ApplicationError(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                error_code="WAL_011",
-                payload={
-                    "error": "Wallet Import Timeout",
-                    "message": "Timed out while handling prompts during wallet import",
                 },
             )
 
