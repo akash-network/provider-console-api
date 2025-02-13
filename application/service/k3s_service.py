@@ -242,7 +242,7 @@ class K3sService:
 clusters:
 - cluster:
     certificate-authority-data: {ca_data}
-    server: https://{external_ip}:6443
+    server: http://{internal_ip}:6443
   name: k3s-cluster
 contexts:
 - context:
