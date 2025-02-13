@@ -1,5 +1,6 @@
 import base64
 import json
+import asyncio
 from typing import Dict, Tuple, List, Optional
 
 import requests
@@ -27,30 +28,36 @@ class ClusterNodeService:
     async def verify_control_machine_connection(
         self, input: ControlMachineInput
     ) -> Dict:
-        with self._get_ssh_client(input) as ssh_client:
-            self._check_sudo_rights(ssh_client)
-            system_info = self._gather_system_info(ssh_client)
-            key_id, public_key = self._generate_and_store_key_pair(ssh_client)
+        def ssh_operations():
+            with self._get_ssh_client(input) as ssh_client:
+                self._check_sudo_rights(ssh_client)
+                system_info = self._gather_system_info(ssh_client)
+                key_id, public_key = self._generate_and_store_key_pair(ssh_client)
 
-            system_info["public_key"] = base64.b64encode(public_key).decode("utf-8")
-            system_info["key_id"] = key_id
-
-            log.info(f"Control machine verification result: {system_info}")
-            return {"system_info": system_info}
+                system_info["public_key"] = base64.b64encode(public_key).decode("utf-8")
+                system_info["key_id"] = key_id
+                return system_info
+        
+        system_info = await asyncio.to_thread(ssh_operations)
+        log.info(f"Control machine verification result: {system_info}")
+        return {"system_info": system_info}
 
     async def verify_worker_connection(
         self, control_input: ControlMachineInput, worker_input: WorkerNodeInput
     ) -> Dict:
-        with self._get_ssh_client(control_input) as control_ssh_client:
-            with self._connect_to_worker_node(
-                control_ssh_client, worker_input
-            ) as worker_ssh_client:
-                system_info = self._gather_system_info(worker_ssh_client)
-                self._setup_ssh_keys(control_ssh_client, worker_ssh_client)
-                system_info["has_sudo"] = self._check_sudo_rights(worker_ssh_client)
+        def ssh_operations():
+            with self._get_ssh_client(control_input) as control_ssh_client:
+                with self._connect_to_worker_node(
+                    control_ssh_client, worker_input
+                ) as worker_ssh_client:
+                    system_info = self._gather_system_info(worker_ssh_client)
+                    self._setup_ssh_keys(control_ssh_client, worker_ssh_client)
+                    system_info["has_sudo"] = self._check_sudo_rights(worker_ssh_client)
+                    return system_info
 
-                log.info("Completed gathering worker node information")
-                return {"system_info": system_info}
+        system_info = await asyncio.to_thread(ssh_operations)
+        log.info("Completed gathering worker node information")
+        return {"system_info": system_info}
 
     def _get_ssh_client(self, input):
         return get_ssh_client(input)

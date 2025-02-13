@@ -11,7 +11,7 @@ from application.utils.redis import get_redis_client
 from application.config.mongodb import logs_collection
 
 # Constants
-SSH_TIMEOUT: int = 60
+SSH_TIMEOUT: int = 30
 LOCAL_ADDR: Tuple[str, int] = ("", 0)
 
 
