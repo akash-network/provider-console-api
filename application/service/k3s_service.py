@@ -78,7 +78,7 @@ class K3sService:
             )
             internal_ip = internal_ip.strip()
 
-            install_exec += f" --node-ip={internal_ip}"
+            install_exec += f" --node-ip={internal_ip} --advertise-address={internal_ip}"
             log.info(f"Setting node IP to {internal_ip}")
 
             if external_ip:
