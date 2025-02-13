@@ -294,6 +294,9 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
 --set-string nodeSelector.allow-nvdp="true"
 """
             run_ssh_command(ssh_client, nvidia_device_plugin_command, task_id=task_id)
+            
+            time.sleep(10)
+            run_ssh_command(ssh_client, "systemctl restart k3s", task_id=task_id)
             log.info("NVIDIA Device Plugin installation completed.")
             log.info("NVIDIA Runtime Engine configuration completed.")
         except Exception as e:
