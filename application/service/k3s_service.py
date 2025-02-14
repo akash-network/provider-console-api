@@ -206,7 +206,7 @@ class K3sService:
     def _update_kubeconfig(self, ssh_client, external_ip: str, task_id: str):
         try:
             log.info(
-                f"Updating kubeconfig file to use both internal and external IP addresses..."
+                f"Updating kubeconfig file to use internal IP address..."
             )
 
             kubeconfig_path = "/etc/rancher/k3s/k3s.yaml"
@@ -242,7 +242,7 @@ class K3sService:
 clusters:
 - cluster:
     certificate-authority-data: {ca_data}
-    server: http://{internal_ip}:6443
+    server: https://{internal_ip}:6443
   name: k3s-cluster
 contexts:
 - context:
@@ -287,7 +287,7 @@ users:
             log.info("Copied k3s.yaml to ~/.kube/config with correct permissions.")
 
             log.info(
-                "kubeconfig file updated to use both internal and external IP addresses with a single context."
+                "kubeconfig file updated to use internal IP address."
             )
         except Exception as e:
             log.error(f"Error updating kubeconfig: {str(e)}")
