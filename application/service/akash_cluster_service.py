@@ -162,18 +162,6 @@ class AkashClusterService:
                     )
                 )
 
-        # k3s_tasks.extend(
-        #     [
-        #         Task(
-        #             str(uuid4()),
-        #             "check_akash_node_status",
-        #             "Check Akash node status",
-        #             self.k3s_service._check_akash_node_status,
-        #             ssh_client,
-        #         )
-        #     ]
-        # )
-
         return k3s_tasks
 
     def _create_provider_tasks(
@@ -274,6 +262,18 @@ class AkashClusterService:
                     install_gpu_driver_nodes,
                 )
             )
+        
+        provider_tasks.extend(
+            [
+                Task(
+                    str(uuid4()),
+                    "check_akash_node_readiness",
+                    "Check Akash Node Readiness",
+                    self.provider_service._check_akash_node_readiness,
+                    ssh_client,
+                )
+            ]
+        )
 
         return provider_tasks
 
