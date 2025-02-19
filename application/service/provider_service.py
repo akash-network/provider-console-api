@@ -463,7 +463,7 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
         # Construct the attributes string for yq
         attr_string = ",".join(
             [
-                f'{{"key":"{attr["key"]}","value":"{attr["value"]}"}}'
+                f'{{"key":"{attr["key"]}","value":{attr["value"]}}}'
                 for attr in attributes
             ]
         )
