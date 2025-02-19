@@ -463,7 +463,7 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
         # Construct the attributes string for yq
         attr_string = ",".join(
             [
-                f'{{"key":"{attr["key"]}","value":"{attr["value"]}"}}'
+                f'{{"key":"{attr["key"]}","value":{attr["value"] if attr["value"] == "true" or attr["value"] == "false" else f'"{attr["value"]}"'}}}'
                 for attr in attributes
             ]
         )
@@ -534,10 +534,14 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
             command = "cat ~/provider/price_script_generic.sh | openssl base64 -A"
             output, _ = run_ssh_command(ssh_client, command)
             pricing_script_b64 = output.strip()
+            provider_version = Config.PROVIDER_SERVICES_VERSION.replace("v", "")
 
             # Upgrade helm chart with the pricing script
-            command = f'helm upgrade --install akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript="{pricing_script_b64}" --set image.tag=0.6.4'
+            command = f'helm upgrade --install akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript="{pricing_script_b64}" --set image.tag={provider_version}'
             run_ssh_command(ssh_client, command)
+
+            time.sleep(10)
+            run_ssh_command(ssh_client, "kubectl rollout restart deployment operator-inventory -n akash-services")
             log.info("Provider service restarted successfully.")
         except Exception as e:
             log.error(f"Error restarting provider service: {str(e)}")
