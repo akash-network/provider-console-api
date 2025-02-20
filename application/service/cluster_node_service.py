@@ -87,7 +87,7 @@ class ClusterNodeService:
 set -e
 cpu_info=$(lscpu | grep '^CPU(s):' | awk '{print $2}')
 memory_total=$(free -h | grep Mem | awk '{print $2}')
-gpu_count=$(lspci -nn | grep -Ei 'vga|3d' | awk '/\\[(10de|1002):[0-9a-f]+\\]/ {print gensub(/.*\\[(10de:[0-9a-f]+)\\].*/, "\\\\1", "g")}' | wc -l)
+gpu_count=$(lspci -nn | grep -Ei 'vga|3d' | sed -nE 's/.*\[(10de:[0-9a-f]+)\].*/\1/p' | wc -l)
 public_ip=$(curl -s ifconfig.me)
 private_ip=$(hostname -I | awk '{print $1}')
 os_info=$(cat /etc/os-release | grep PRETTY_NAME | awk -F= '{print $2}' | sed 's/"//g')
