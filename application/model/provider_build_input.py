@@ -84,7 +84,7 @@ class Provider(BaseModel):
 
 class Wallet(BaseModel):
     key_id: str
-    wallet_phrase: Optional[str]
+    wallet_phrase: Optional[str] = None
     override_seed: Optional[bool] = False
     import_mode: Literal["auto", "manual"]
 
