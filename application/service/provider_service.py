@@ -101,7 +101,7 @@ attributes:
         for attr in attributes:
             key = attr.key
             value = attr.value
-            config_content += f'  - key: {key}\n    value: "{value}"\n'
+            config_content += f'  - key: {key}\n    value: {value}\n'
 
         # Add pricing information
         config_content += f"""
