@@ -89,7 +89,7 @@ cpu_info=$(lscpu | grep '^CPU(s):' | awk '{print $2}')
 memory_total=$(free -h | grep Mem | awk '{print $2}')
 gpu_count=$(lspci -nn | grep -Ei 'vga|3d' | sed -nE 's/.*\[(10de:[0-9a-f]+)\].*/\1/p' | wc -l)
 public_ip=$(curl -s ifconfig.me)
-private_ip=$(hostname -I | awk '{print $1}')
+private_ip=$(ip -4 -o a | while read -r line; do set -- $line; if echo "$4" | grep -qE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)'; then echo "${4%/*}"; break; fi; done)
 os_info=$(cat /etc/os-release | grep PRETTY_NAME | awk -F= '{print $2}' | sed 's/"//g')
 storage_data=$(lsblk -e 7 -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT -bJ)
 
