@@ -12,6 +12,9 @@ from application.utils.ssh_utils import (
 
 
 class K3sService:
+    
+    INTERNAL_IP_CMD = """ip -4 -o a | while read -r line; do set -- $line; if echo "$4" | grep -qE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)'; then echo "${4%/*}"; break; fi; done"""
+
     def check_existing_installations(self, control_input: ControlMachineInput):
         log.info(f"Checking for existing installations on {control_input.hostname}")
         try:
@@ -74,7 +77,7 @@ class K3sService:
             )
 
             internal_ip, _ = run_ssh_command(
-                ssh_client, "hostname -I | awk '{print $1}'", task_id=task_id
+                ssh_client, self.INTERNAL_IP_CMD, task_id=task_id
             )
             internal_ip = internal_ip.strip()
 
@@ -212,7 +215,7 @@ class K3sService:
             kubeconfig_path = "/etc/rancher/k3s/k3s.yaml"
 
             internal_ip, _ = run_ssh_command(
-                ssh_client, "hostname -I | awk '{print $1}'", task_id=task_id
+                ssh_client, self.INTERNAL_IP_CMD, task_id=task_id
             )
             internal_ip = internal_ip.strip()
 
@@ -318,7 +321,7 @@ users:
 
             # Get the main control node's IP address
             master_ip, _ = run_ssh_command(
-                control_ssh_client, "hostname -I | awk '{print $1}'", task_id=task_id
+                control_ssh_client, self.INTERNAL_IP_CMD, task_id=task_id
             )
 
             # Connect to the worker node through the control node
@@ -326,7 +329,7 @@ users:
             try:
                 # Get the internal IP of the new control node
                 internal_ip, _ = run_ssh_command(
-                    worker_ssh_client, "hostname -I | awk '{print $1}'", task_id=task_id
+                    worker_ssh_client, self.INTERNAL_IP_CMD, task_id=task_id
                 )
                 internal_ip = internal_ip.strip()
 
@@ -376,7 +379,7 @@ users:
 
             # Get the main control node's IP address
             master_ip, _ = run_ssh_command(
-                control_ssh_client, "hostname -I | awk '{print $1}'", task_id=task_id
+                control_ssh_client, self.INTERNAL_IP_CMD, task_id=task_id
             )
 
             # Connect to the worker node through the control node
