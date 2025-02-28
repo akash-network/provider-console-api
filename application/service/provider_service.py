@@ -14,7 +14,7 @@ from application.config.mongodb import logs_collection
 
 class ProviderService:
 
-    async def _install_helm(self, ssh_client, task_id: str):
+    def _install_helm(self, ssh_client, task_id: str):
         log.info("Installing Helm...")
         helm_version = Config.HELM_VERSION
         commands = [
@@ -39,7 +39,7 @@ class ProviderService:
                 },
             )
 
-    async def _setup_helm_repos(self, ssh_client, task_id: str):
+    def _setup_helm_repos(self, ssh_client, task_id: str):
         log.info("Setting up Helm repositories...")
         commands = [
             "helm repo remove akash 2>/dev/null || true",
@@ -51,7 +51,7 @@ class ProviderService:
             run_ssh_command(ssh_client, cmd, task_id=task_id)
         log.info("Helm and Akash repository setup completed.")
 
-    async def _install_akash_services(
+    def _install_akash_services(
         self, ssh_client, chain_id, provider_version, node_version, task_id: str
     ):
         log.info("Installing Akash services...")
@@ -68,7 +68,7 @@ class ProviderService:
             run_ssh_command(ssh_client, cmd, task_id=task_id)
         log.info("Akash services installed.")
 
-    async def _prepare_provider_config(
+    def _prepare_provider_config(
         self,
         ssh_client,
         account_address,
@@ -121,7 +121,7 @@ EOF
         )
         log.info("Provider configuration prepared.")
 
-    async def _install_akash_crds(self, ssh_client, provider_version, task_id: str):
+    def _install_akash_crds(self, ssh_client, provider_version, task_id: str):
         log.info("Installing CRDs for Akash provider...")
         time.sleep(5)
         run_ssh_command(
@@ -131,7 +131,7 @@ EOF
         )
         log.info("Akash provider CRDs installed.")
 
-    async def _install_akash_provider(self, ssh_client, provider_version, task_id: str):
+    def _install_akash_provider(self, ssh_client, provider_version, task_id: str):
         log.info("Installing Akash provider...")
         time.sleep(5)
         try:
@@ -205,7 +205,7 @@ EOF
             )
             return None
 
-    async def _install_nginx_ingress(self, ssh_client, task_id: str):
+    def _install_nginx_ingress(self, ssh_client, task_id: str):
         log.info("Installing NGINX Ingress Controller...")
         ingress_config = """
 cat > ingress-nginx-custom.yaml << EOF
@@ -245,7 +245,7 @@ EOF
             run_ssh_command(ssh_client, cmd, task_id=task_id)
         log.info("NGINX Ingress Controller installation completed.")
 
-    async def _configure_gpu_support(
+    def _configure_gpu_support(
         self, ssh_client, install_gpu_driver_nodes, task_id: str
     ):
         try:
