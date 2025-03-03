@@ -13,7 +13,7 @@ from application.utils.ssh_utils import (
 
 class K3sService:
     
-    INTERNAL_IP_CMD = """ip -4 -o a | while read -r line; do set -- $line; if echo "$4" | grep -qE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)'; then echo "${4%/*}"; break; fi; done"""
+    INTERNAL_IP_CMD = r"""ip -4 -o a | while read -r line; do set -- $line; if echo "$4" | grep -qE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)'; then echo "${4%/*}"; break; fi; done"""
 
     def check_existing_installations(self, control_input: ControlMachineInput):
         log.info(f"Checking for existing installations on {control_input.hostname}")
@@ -442,18 +442,6 @@ users:
         except Exception as e:
             self._handle_unexpected_error(e, "GPU installation")
 
-    # def _check_akash_node_status(self, ssh_client, task_id: str):
-    #     log.info("Checking Akash node status")
-    #     try:
-    #         time.sleep(5)
-
-    #         stdout, _ = run_ssh_command(ssh_client, "kubectl exec -it akash-node-1-0 -n akash-services -c akash-node -- akash status")
-    #         log.info(f"Akash node status: {stdout}")
-    #         log.info("Akash node status check completed successfully")
-    #     except ApplicationError:
-    #         raise
-    #     except Exception as e:
-    #         self._handle_unexpected_error(e, "Akash node status check")
 
     def _update_system(
         self, ssh_client, control_input: ControlMachineInput, task_id: str

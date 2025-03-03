@@ -15,7 +15,7 @@ async def provider_onchain_status_get(
     chainid: str, wallet_address: str = Depends(verify_token)
 ):
     try:
-        provider_details = check_on_chain_provider_status(chainid, wallet_address)
+        provider_details = await check_on_chain_provider_status(chainid, wallet_address)
         return {"provider": False if provider_details is False else provider_details}
     except ApplicationError as ae:
         raise HTTPException(
@@ -45,7 +45,7 @@ async def provider_online_status_get(
     chainid: str, wallet_address: str = Depends(verify_token)
 ):
     try:
-        provider_online_status = check_provider_online_status(chainid, wallet_address)
+        provider_online_status = await check_provider_online_status(chainid, wallet_address)
         return {"online": False if provider_online_status is False else True}
     except ApplicationError as ae:
         raise HTTPException(
