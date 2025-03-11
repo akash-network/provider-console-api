@@ -26,12 +26,14 @@ class ClusterNodeService:
         self.gpu_data_url = Config.GPU_DATA_URL
 
     async def verify_control_machine_connection(
-        self, input: ControlMachineInput
+        self, input: ControlMachineInput, wallet_address: str
     ) -> Dict:
         def ssh_operations():
             with self._get_ssh_client(input) as ssh_client:
                 self._check_sudo_rights(ssh_client)
+                self._verify_provider_wallet(ssh_client, wallet_address)
                 system_info = self._gather_system_info(ssh_client)
+
                 key_id, public_key = self._generate_and_store_key_pair(ssh_client)
 
                 system_info["public_key"] = base64.b64encode(public_key).decode("utf-8")
@@ -296,3 +298,28 @@ EOF"""
                 "message": f"Unexpected error during {node_type} verification: {str(error)}"
             },
         )
+
+    def _verify_provider_wallet(self, ssh_client, wallet_address: str) -> None:
+        try:
+            cmd = """kubectl get pod akash-provider-0 -n akash-services -o jsonpath='{.spec.containers[?(@.name=="provider")].env}' | jq -r '.[] | select(.name == "AKASH_FROM") | .value'"""
+            stdout, stderr = run_ssh_command(ssh_client, cmd, check_exit_status=False)
+            
+            if stderr:
+                log.warning(f"Could not fetch provider wallet address: {stderr}")
+                return
+            
+            provider_address = stdout.strip()
+            if provider_address and provider_address != wallet_address:
+                raise self._create_application_error(
+                    "WALLET_001",
+                    f"Provided wallet address {wallet_address} does not match the provider wallet address {provider_address}"
+                )
+            
+            log.info(f"Successfully verified provider wallet address: {provider_address}")
+            
+        except Exception as e:
+            log.error(f"Error verifying provider wallet address: {wallet_address} {str(e)}")
+            raise self._create_application_error(
+                "WALLET_002",
+                f"Provided wallet address {wallet_address} does not match the control machine provider wallet address"
+            )
