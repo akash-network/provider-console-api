@@ -2,13 +2,13 @@ from base64 import b64decode
 import io
 from typing import Tuple
 
-from fastapi import APIRouter, HTTPException, UploadFile, status
+from fastapi import APIRouter, HTTPException, UploadFile, status, Depends
 from pydantic import ValidationError
 
 from application.exception.application_error import ApplicationError
 from application.model.machine_input import ControlMachineInput, WorkerNodeInput
 from application.service.cluster_node_service import ClusterNodeService
-from application.service.wallet_service import WalletService
+from application.utils.dependency import verify_token
 from application.utils.general import success_response
 from application.utils.logger import log
 
@@ -87,14 +87,14 @@ async def get_control_and_worker_input(
 
 # Route handlers
 @router.post("/verify/control-machine")
-async def verify_control_machine(data: dict):
+async def verify_control_machine(data: dict, wallet_address: str = Depends(verify_token)):
     input_data = await get_control_machine_input(data)
     log.info(f"Received verification request for hostname: {input_data.hostname}")
 
     cluster_node_service = ClusterNodeService()
     try:
         verify_connection_result = (
-            await cluster_node_service.verify_control_machine_connection(input_data)
+            await cluster_node_service.verify_control_machine_connection(input_data, wallet_address)
         )
         log.info(f"Successfully connected to {input_data.hostname}")
         return success_response(verify_connection_result)
