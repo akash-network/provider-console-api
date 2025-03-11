@@ -16,6 +16,7 @@ from application.utils.ssh_utils import get_ssh_client
 from application.service.wallet_service import WalletService
 from application.utils.logger import log
 from application.utils.dependency import verify_token
+from application.service.version_service import VersionService
 
 
 router = APIRouter()
@@ -312,6 +313,16 @@ async def update_provider_domain(
                 },
             },
         )
+
+
+@router.get("/network/upgrade-status")
+async def check_network_upgrade(
+    machine_input: ControlMachineInput,
+    wallet_address: str = Depends(verify_token)
+) -> Dict:
+    """Check if network upgrade is needed by comparing current and deployed versions"""
+    version_service = VersionService()
+    return await version_service.check_upgrade_status(machine_input)
 
 
 @router.post("/restart-provider")

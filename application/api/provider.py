@@ -68,22 +68,57 @@ async def provider_online_status_get(
         )
 
 
-async def get_provider_status(
-    status_type: str, check_function, chainid: str, wallet_address: str
-):
-    log.info(f"Getting {status_type} status for wallet address ({wallet_address})")
+@router.get("/network/upgrade-status")
+async def check_network_upgrade(
+    machine_input: ControlMachineInput,
+    wallet_address: str = Depends(verify_token)
+) -> Dict:
+    """Check if network upgrade is needed by comparing current and deployed versions"""
+    
+    def get_deployed_version():
+        ssh_client = get_ssh_client(machine_input)
+        try:
+            command = "helm list -n akash-services -o json | jq '.[] | select(.name == \"akash-node\")'"
+            stdout, _ = run_ssh_command(ssh_client, command, True)
+            helm_data = json.loads(stdout)
+            
+            if not helm_data:
+                raise ApplicationError(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    error_code="PROVIDER_002",
+                    payload={
+                        "error": "Akash Node Not Found",
+                        "message": "Could not find akash-node helm release"
+                    }
+                )
+            
+            return helm_data.get("app_version")
+        finally:
+            ssh_client.close()
+
     try:
-        provider_details = check_function(chainid, wallet_address)
-        return {"provider": provider_details if provider_details else False}
-    except ApplicationError as ae:
-        raise ae
+        # Get the deployed version in a separate thread
+        deployed_version = await asyncio.to_thread(get_deployed_version)
+        
+        # Compare versions
+        current_version = Config.AKASH_VERSION.lstrip('v')  # Remove 'v' prefix if present
+        deployed_version = deployed_version.lstrip('v')
+        
+        needs_upgrade = version.parse(deployed_version) < version.parse(current_version)
+        
+        return {
+            "needs_upgrade": needs_upgrade,
+            "current_version": current_version,
+            "deployed_version": deployed_version
+        }
+        
     except Exception as e:
-        log.error(f"Error getting {status_type} provider status: {e}")
+        log.error(f"Error checking network upgrade status: {e}")
         raise ApplicationError(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            error_code=f"PROVIDER_00{'2' if status_type == 'on_chain' else '3'}",
+            error_code="PROVIDER_003",
             payload={
-                "error": "Provider Status Check Error",
-                "message": f"Error getting {status_type} provider status: {e}",
-            },
+                "error": "Network Upgrade Check Error",
+                "message": str(e)
+            }
         )
