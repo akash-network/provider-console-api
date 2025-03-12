@@ -39,7 +39,7 @@ class ClusterNodeService:
                 system_info["public_key"] = base64.b64encode(public_key).decode("utf-8")
                 system_info["key_id"] = key_id
                 return system_info
-        
+
         system_info = await asyncio.to_thread(ssh_operations)
         log.info(f"Control machine verification result: {system_info}")
         return {"system_info": system_info}
@@ -303,23 +303,27 @@ EOF"""
         try:
             cmd = """kubectl get pod akash-provider-0 -n akash-services -o jsonpath='{.spec.containers[?(@.name=="provider")].env}' | jq -r '.[] | select(.name == "AKASH_FROM") | .value'"""
             stdout, stderr = run_ssh_command(ssh_client, cmd, check_exit_status=False)
-            
+
             if stderr:
                 log.warning(f"Could not fetch provider wallet address: {stderr}")
                 return
-            
+
             provider_address = stdout.strip()
             if provider_address and provider_address != wallet_address:
                 raise self._create_application_error(
                     "WALLET_001",
-                    f"Provided wallet address {wallet_address} does not match the provider wallet address {provider_address}"
+                    f"Provided wallet address {wallet_address} does not match the provider wallet address {provider_address}",
                 )
-            
-            log.info(f"Successfully verified provider wallet address: {provider_address}")
-            
+
+            log.info(
+                f"Successfully verified provider wallet address: {provider_address}"
+            )
+
         except Exception as e:
-            log.error(f"Error verifying provider wallet address: {wallet_address} {str(e)}")
+            log.error(
+                f"Error verifying provider wallet address: {wallet_address} {str(e)}"
+            )
             raise self._create_application_error(
                 "WALLET_002",
-                f"Provided wallet address {wallet_address} does not match the control machine provider wallet address"
+                f"Provided wallet address {wallet_address} does not match the control machine provider wallet address",
             )

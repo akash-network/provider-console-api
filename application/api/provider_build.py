@@ -315,14 +315,74 @@ async def update_provider_domain(
         )
 
 
-@router.get("/network/upgrade-status")
+@router.post("/network/upgrade-status")
 async def check_network_upgrade(
-    machine_input: ControlMachineInput,
-    wallet_address: str = Depends(verify_token)
+    machine_input: Dict, wallet_address: str = Depends(verify_token)
 ) -> Dict:
     """Check if network upgrade is needed by comparing current and deployed versions"""
-    version_service = VersionService()
-    return await version_service.check_upgrade_status(machine_input)
+    try:
+        control_machine = machine_input["control_machine"]
+        # Decode keyfile
+        if "keyfile" in control_machine and control_machine["keyfile"]:
+            control_machine["keyfile"] = decode_keyfile_to_uploadfile(
+                control_machine["keyfile"]
+            )
+
+        control_machine_input = ControlMachineInput(**control_machine)
+
+        ssh_client = get_ssh_client(control_machine_input)
+        version_service = VersionService()
+        return await version_service.check_upgrade_status(ssh_client)
+    except Exception as e:
+        log.error(f"Error checking network upgrade status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"An error occurred while checking network upgrade status: {str(e)}",
+                    "error_code": "PRV_005",
+                },
+            },
+        )
+
+
+@router.post("/network/upgrade")
+async def upgrade_network(
+    machine_input: Dict, wallet_address: str = Depends(verify_token)
+) -> Dict:
+    try:
+        control_machine = machine_input["control_machine"]
+        # Decode keyfile
+        if "keyfile" in control_machine and control_machine["keyfile"]:
+            control_machine["keyfile"] = decode_keyfile_to_uploadfile(
+                control_machine["keyfile"]
+            )
+
+        control_machine_input = ControlMachineInput(**control_machine)
+
+        action_id = str(uuid4())
+        akash_cluster_service = AkashClusterService()
+        await akash_cluster_service.upgrade_network(
+            action_id, control_machine_input, wallet_address
+        )
+
+        return {
+            "message": "Network upgrade process started successfully",
+            "action_id": action_id,
+        }
+    except Exception as e:
+        log.error(f"Error upgrading network: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"An error occurred while upgrading the network: {str(e)}",
+                    "error_code": "PRV_006",
+                },
+            },
+        )
 
 
 @router.post("/restart-provider")

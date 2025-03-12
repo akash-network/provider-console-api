@@ -87,14 +87,18 @@ async def get_control_and_worker_input(
 
 # Route handlers
 @router.post("/verify/control-machine")
-async def verify_control_machine(data: dict, wallet_address: str = Depends(verify_token)):
+async def verify_control_machine(
+    data: dict, wallet_address: str = Depends(verify_token)
+):
     input_data = await get_control_machine_input(data)
     log.info(f"Received verification request for hostname: {input_data.hostname}")
 
     cluster_node_service = ClusterNodeService()
     try:
         verify_connection_result = (
-            await cluster_node_service.verify_control_machine_connection(input_data, wallet_address)
+            await cluster_node_service.verify_control_machine_connection(
+                input_data, wallet_address
+            )
         )
         log.info(f"Successfully connected to {input_data.hostname}")
         return success_response(verify_connection_result)
