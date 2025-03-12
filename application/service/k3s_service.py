@@ -12,7 +12,7 @@ from application.utils.ssh_utils import (
 
 
 class K3sService:
-    
+
     INTERNAL_IP_CMD = r"""ip -4 -o a | while read -r line; do set -- $line; if echo "$4" | grep -qE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)'; then echo "${4%/*}"; break; fi; done"""
 
     def check_existing_installations(self, control_input: ControlMachineInput):
@@ -81,7 +81,9 @@ class K3sService:
             )
             internal_ip = internal_ip.strip()
 
-            install_exec += f" --node-ip={internal_ip} --advertise-address={internal_ip}"
+            install_exec += (
+                f" --node-ip={internal_ip} --advertise-address={internal_ip}"
+            )
             log.info(f"Setting node IP to {internal_ip}")
 
             if external_ip:
@@ -208,9 +210,7 @@ class K3sService:
 
     def _update_kubeconfig(self, ssh_client, external_ip: str, task_id: str):
         try:
-            log.info(
-                f"Updating kubeconfig file to use internal IP address..."
-            )
+            log.info(f"Updating kubeconfig file to use internal IP address...")
 
             kubeconfig_path = "/etc/rancher/k3s/k3s.yaml"
 
@@ -289,9 +289,7 @@ users:
 
             log.info("Copied k3s.yaml to ~/.kube/config with correct permissions.")
 
-            log.info(
-                "kubeconfig file updated to use internal IP address."
-            )
+            log.info("kubeconfig file updated to use internal IP address.")
         except Exception as e:
             log.error(f"Error updating kubeconfig: {str(e)}")
             raise ApplicationError(
@@ -441,7 +439,6 @@ users:
             raise
         except Exception as e:
             self._handle_unexpected_error(e, "GPU installation")
-
 
     def _update_system(
         self, ssh_client, control_input: ControlMachineInput, task_id: str

@@ -55,13 +55,10 @@ async def check_provider_status(chain_id: str, wallet_address: str, command_type
     try:
         # Setup connection details
         machine_input = await asyncio.to_thread(setup_ssh_connection)
-        
+
         # Execute SSH command in separate thread
-        provider_details = await asyncio.to_thread(
-            execute_ssh_command, 
-            machine_input
-        )
-        
+        provider_details = await asyncio.to_thread(execute_ssh_command, machine_input)
+
         return provider_details
 
     except TimeoutError:

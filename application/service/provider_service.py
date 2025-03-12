@@ -101,7 +101,7 @@ attributes:
         for attr in attributes:
             key = attr.key
             value = attr.value
-            config_content += f'  - key: {key}\n    value: {value}\n'
+            config_content += f"  - key: {key}\n    value: {value}\n"
 
         # Add pricing information
         config_content += f"""
@@ -328,100 +328,110 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
             while time.time() - start_time < pod_timeout:
                 stdout, _ = run_ssh_command(
                     ssh_client,
-                    'kubectl get pod akash-node-1-0 -n akash-services -o json | jq -c \'{status: .status.phase}\'',
+                    "kubectl get pod akash-node-1-0 -n akash-services -o json | jq -c '{status: .status.phase}'",
                     check_exit_status=False,
-                    task_id=task_id
+                    task_id=task_id,
                 )
-                
+
                 try:
                     status_data = json.loads(stdout)
-                    if status_data.get('status') == 'Running':
+                    if status_data.get("status") == "Running":
                         message = "Akash node pod is running, proceeding to sync check"
                         log.info(message)
                         redis_client.xadd(f"task:{task_id}", {"stdout": message})
-                        logs_to_append.append({ "type": "stdout", "message":message})
+                        logs_to_append.append({"type": "stdout", "message": message})
                         break
                 except json.JSONDecodeError as e:
                     log.debug(f"Failed to parse JSON response: {e}")
                     message = f"Failed to parse JSON response: {e}"
                     log.debug(message)
                     redis_client.xadd(f"task:{task_id}", {"stderr": message})
-                    logs_to_append.append({ "type": "stderr", "message":message})
+                    logs_to_append.append({"type": "stderr", "message": message})
                 message = f"Akash node pod not ready yet, waiting {check_interval} seconds before next check"
                 log.debug(message)
                 redis_client.xadd(f"task:{task_id}", {"stderr": message})
-                logs_to_append.append({ "type": "stderr", "message":message})
+                logs_to_append.append({"type": "stderr", "message": message})
                 time.sleep(check_interval)
             else:
-                message = f"Akash node pod did not become ready within {pod_timeout} seconds"
+                message = (
+                    f"Akash node pod did not become ready within {pod_timeout} seconds"
+                )
                 log.error(message)
                 redis_client.xadd(f"task:{task_id}", {"stderr": message})
-                logs_to_append.append({ "type": "stderr", "message":message})
+                logs_to_append.append({"type": "stderr", "message": message})
                 raise ApplicationError(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     error_code="PROVIDER_006",
                     payload={
                         "error": "Akash Node Not Ready",
-                        "message": f"Akash node pod did not become ready within {pod_timeout} seconds"
-                    }
+                        "message": f"Akash node pod did not become ready within {pod_timeout} seconds",
+                    },
                 )
-            
+
             # Phase 2: Check node sync status
             message = "Checking Akash node sync status"
             log.info(message)
             redis_client.xadd(f"task:{task_id}", {"stdout": message})
-            logs_to_append.append({ "type": "stdout", "message":message})
+            logs_to_append.append({"type": "stdout", "message": message})
             sync_start_time = time.time()
             while time.time() - sync_start_time < sync_timeout:
                 # Get node status
                 stdout, _ = run_ssh_command(
                     ssh_client,
-                    'kubectl exec -it akash-node-1-0 -n akash-services -c akash-node -- akash status',
+                    "kubectl exec -it akash-node-1-0 -n akash-services -c akash-node -- akash status",
                     check_exit_status=False,
-                    task_id=task_id
+                    task_id=task_id,
                 )
-                
+
                 try:
                     node_status = json.loads(stdout)
-                    
+
                     # Get network status from Polkachu RPC using requests
-                    response = requests.get(f'{Config.AKASH_NODE_STATUS_CHECK}/status', timeout=10)
+                    response = requests.get(
+                        f"{Config.AKASH_NODE_STATUS_CHECK}/status", timeout=10
+                    )
                     response.raise_for_status()
                     network_status = response.json()
-                    
+
                     # Extract block heights
-                    node_height = int(node_status['SyncInfo']['latest_block_height'])
-                    network_height = int(network_status['result']['sync_info']['latest_block_height'])
-                    
+                    node_height = int(node_status["SyncInfo"]["latest_block_height"])
+                    network_height = int(
+                        network_status["result"]["sync_info"]["latest_block_height"]
+                    )
+
                     # Check if node is catching up
-                    if node_status['SyncInfo']['catching_up']:
+                    if node_status["SyncInfo"]["catching_up"]:
                         message = f"Node is still catching up. Current height: {node_height}, Network height: {network_height}"
                         log.debug(message)
                         redis_client.xadd(f"task:{task_id}", {"stdout": message})
-                        logs_to_append.append({ "type": "stdout", "message":message})
+                        logs_to_append.append({"type": "stdout", "message": message})
                         time.sleep(check_interval)
                         continue
-                    
+
                     # Check if node is within 5 blocks of network height
                     if network_height - node_height <= 5:
                         message = f"Node is synced. Height: {node_height}, Network height: {network_height}"
                         log.info(message)
                         redis_client.xadd(f"task:{task_id}", {"stdout": message})
-                        logs_to_append.append({ "type": "stdout", "message":message})
+                        logs_to_append.append({"type": "stdout", "message": message})
 
                         # Restart k3s and operator-inventory to apply the changes
                         time.sleep(20)
-                        run_ssh_command(ssh_client, "kubectl rollout restart deployment operator-inventory -n akash-services", task_id=task_id)
+                        run_ssh_command(
+                            ssh_client,
+                            "kubectl rollout restart deployment operator-inventory -n akash-services",
+                            task_id=task_id,
+                        )
 
                         return {
                             "message": "Akash node is ready and synced",
                             "node_height": node_height,
-                            "network_height": network_height
+                            "network_height": network_height,
                         }
                     message = f"Node not fully synced. Current height: {node_height}, Network height: {network_height}"
                     log.debug(message)
                     redis_client.xadd(f"task:{task_id}", {"stderr": message})
-                    logs_to_append.append({ "type": "stderr", "message":message})
+                    logs_to_append.append({"type": "stderr", "message": message})
 
                     if logs_to_append:
                         logs_collection.update_one(
@@ -434,26 +444,38 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
                         )
                 except json.JSONDecodeError as e:
                     log.debug(f"Failed to parse JSON response: {e}")
-                    redis_client.xadd(f"task:{task_id}", {"stderr": f"Failed to parse JSON response: {e}"})
+                    redis_client.xadd(
+                        f"task:{task_id}",
+                        {"stderr": f"Failed to parse JSON response: {e}"},
+                    )
                 except requests.RequestException as e:
                     log.debug(f"Failed to fetch network status: {e}")
-                    redis_client.xadd(f"task:{task_id}", {"stderr": f"Failed to fetch network status: {e}"})
+                    redis_client.xadd(
+                        f"task:{task_id}",
+                        {"stderr": f"Failed to fetch network status: {e}"},
+                    )
                 except KeyError as e:
                     log.debug(f"Missing expected key in response: {e}")
-                    redis_client.xadd(f"task:{task_id}", {"stderr": f"Missing expected key in response: {e}"})
+                    redis_client.xadd(
+                        f"task:{task_id}",
+                        {"stderr": f"Missing expected key in response: {e}"},
+                    )
                 time.sleep(check_interval)
-                
+
             log.error("Akash node did not sync within the timeout period")
-            redis_client.xadd(f"task:{task_id}", {"stderr": "Akash node did not sync within the timeout period"})
+            redis_client.xadd(
+                f"task:{task_id}",
+                {"stderr": "Akash node did not sync within the timeout period"},
+            )
             raise ApplicationError(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 error_code="PROVIDER_007",
                 payload={
                     "error": "Akash Node Sync Failed",
-                    "message": "Akash node did not sync within the timeout period"
-                }
+                    "message": "Akash node did not sync within the timeout period",
+                },
             )
-            
+
         except ApplicationError:
             raise
         except Exception as e:
@@ -541,7 +563,10 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
             run_ssh_command(ssh_client, command)
 
             time.sleep(10)
-            run_ssh_command(ssh_client, "kubectl rollout restart deployment operator-inventory -n akash-services")
+            run_ssh_command(
+                ssh_client,
+                "kubectl rollout restart deployment operator-inventory -n akash-services",
+            )
             log.info("Provider service restarted successfully.")
         except Exception as e:
             log.error(f"Error restarting provider service: {str(e)}")
