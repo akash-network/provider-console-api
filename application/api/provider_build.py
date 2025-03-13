@@ -349,6 +349,7 @@ async def check_network_upgrade(
 
 @router.post("/network/upgrade")
 async def upgrade_network(
+    background_tasks: BackgroundTasks,
     machine_input: Dict, wallet_address: str = Depends(verify_token)
 ) -> Dict:
     try:
@@ -363,8 +364,11 @@ async def upgrade_network(
 
         action_id = str(uuid4())
         akash_cluster_service = AkashClusterService()
-        await akash_cluster_service.upgrade_network(
-            action_id, control_machine_input, wallet_address
+        background_tasks.add_task(
+            akash_cluster_service.upgrade_network,
+            action_id,
+            control_machine_input,
+            wallet_address
         )
 
         return {

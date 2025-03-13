@@ -96,17 +96,7 @@ class VersionService:
                     True,
                     task_id=task_id,
                 )
-                if stderr:
-                    raise ApplicationError(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        error_code="PROVIDER_005", 
-                        payload={
-                            "error": "Helm Repository Update Failed",
-                            "message": f"Failed to update Helm repositories: {stderr}"
-                        }
-                    )
-
-                # Verify akash-node chart is available
+                # Update Helm repositories
                 log.info("Verifying akash-node chart availability...")
                 stdout, stderr = run_ssh_command(
                     ssh_client,
@@ -114,13 +104,15 @@ class VersionService:
                     True,
                     task_id=task_id,
                 )
-                if stderr:
+
+                # Check if akash-node chart exists in stdout
+                if "akash-node" not in stdout:
                     raise ApplicationError(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         error_code="PROVIDER_006",
                         payload={
                             "error": "Helm Chart Not Found",
-                            "message": f"Failed to find akash-node chart: {stderr}"
+                            "message": "Could not find akash-node chart in helm repositories"
                         }
                     )
 
@@ -132,13 +124,22 @@ class VersionService:
                     True,
                     task_id=task_id,
                 )
-                if stderr:
+
+                # Verify the upgrade was successful by checking if the release exists
+                verify_stdout, _ = run_ssh_command(
+                    ssh_client,
+                    "helm list -n akash-services | grep akash-node",
+                    True,
+                    task_id=task_id,
+                )
+                
+                if "akash-node" not in verify_stdout:
                     raise ApplicationError(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         error_code="PROVIDER_007",
                         payload={
-                            "error": "Helm Upgrade Failed", 
-                            "message": f"Failed to upgrade akash-node: {stderr}"
+                            "error": "Helm Upgrade Failed",
+                            "message": "Could not verify akash-node helm release after upgrade"
                         }
                     )
 
@@ -146,6 +147,9 @@ class VersionService:
                     "status": "success",
                     "message": "Network upgrade initiated successfully",
                 }
+        except ApplicationError as e:
+            log.error(f"Error upgrading network: {e.payload["message"]}")
+            raise e
         except Exception as e:
             log.error(f"Error upgrading network: {e}")
             raise ApplicationError(
