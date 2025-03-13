@@ -82,19 +82,65 @@ class VersionService:
             check_upgrade_status = await self.check_upgrade_status(ssh_client)
             
             needs_upgrade = check_upgrade_status["needs_upgrade"]
+            current_version = check_upgrade_status["current_network_version"]
             if not needs_upgrade:
                 return {"status": "success", "message": "Network is up to date"}
             else:
                 # Upgrade network
                 # Delete the pod to trigger upgrade
+                # Update Helm repositories
+                log.info("Updating Helm repositories...")
                 stdout, stderr = run_ssh_command(
                     ssh_client,
-                    "kubectl -n akash-services delete pod akash-node-1-0",
+                    "helm repo update",
                     True,
                     task_id=task_id,
                 )
-                if stderr != "":
-                    raise Exception(f"Failed to delete pod: {stderr}")
+                if stderr:
+                    raise ApplicationError(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        error_code="PROVIDER_005", 
+                        payload={
+                            "error": "Helm Repository Update Failed",
+                            "message": f"Failed to update Helm repositories: {stderr}"
+                        }
+                    )
+
+                # Verify akash-node chart is available
+                log.info("Verifying akash-node chart availability...")
+                stdout, stderr = run_ssh_command(
+                    ssh_client,
+                    "helm search repo akash-node",
+                    True,
+                    task_id=task_id,
+                )
+                if stderr:
+                    raise ApplicationError(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        error_code="PROVIDER_006",
+                        payload={
+                            "error": "Helm Chart Not Found",
+                            "message": f"Failed to find akash-node chart: {stderr}"
+                        }
+                    )
+
+                # Upgrade akash-node deployment
+                log.info(f"Upgrading akash-node to version {current_version}...")
+                stdout, stderr = run_ssh_command(
+                    ssh_client,
+                    f"helm upgrade --install akash-node akash/akash-node -n akash-services --set image.tag={current_version}",
+                    True,
+                    task_id=task_id,
+                )
+                if stderr:
+                    raise ApplicationError(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        error_code="PROVIDER_007",
+                        payload={
+                            "error": "Helm Upgrade Failed", 
+                            "message": f"Failed to upgrade akash-node: {stderr}"
+                        }
+                    )
 
                 return {
                     "status": "success",
