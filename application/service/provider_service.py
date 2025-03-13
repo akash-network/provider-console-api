@@ -323,6 +323,7 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
             check_interval = 10  # Check every 10 seconds
             start_time = time.time()
             logs_to_append = []
+            time.sleep(5)
             # Phase 1: Wait for pod to be running
             log.info("Phase 1: Checking if Akash node pod is running")
             while time.time() - start_time < pod_timeout:
