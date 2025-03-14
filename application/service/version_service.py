@@ -69,7 +69,7 @@ class VersionService:
             needs_upgrade = app_needs_upgrade or chart_needs_upgrade
 
             return {
-                "needs_upgrade": True,
+                "needs_upgrade": needs_upgrade,
                 "app_version": {"current": app_current_version, "desired": app_desired_version},
                 "chart_version": {"current": chart_current_version, "desired": chart_desired_version},
             }
