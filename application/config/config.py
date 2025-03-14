@@ -29,8 +29,10 @@ class Config:
         "https://raw.githubusercontent.com/akash-network/provider-configs/main/devices/pcie/gpus.json",
     )
     KEYRING_BACKEND = environ.get("KEYRING_BACKEND", "file")
-    AKASH_VERSION = environ.get("AKASH_VERSION", "v0.36.0")
-    AKASH_VERSION_TESTNET = environ.get("AKASH_VERSION_TESTNET", "v0.36.0")
+    AKASH_VERSION = environ.get("AKASH_VERSION", "v0.38.0")
+    AKASH_VERSION_TESTNET = environ.get("AKASH_VERSION_TESTNET", "v0.38.0")
+    AKASH_NODE_HELM_CHART_VERSION = environ.get("AKASH_NODE_HELM_CHART_VERSION", "12.0.2")
+    AKASH_NODE_HELM_CHART_VERSION_TESTNET = environ.get("AKASH_NODE_HELM_CHART_VERSION_TESTNET", "12.0.2")
     INGRESS_NGINX_VERSION = environ.get("INGRESS_NGINX_VERSION", "4.11.3")
     PROVIDER_SERVICES_VERSION = environ.get("PROVIDER_SERVICES_VERSION", "v0.6.4")
     PROVIDER_SERVICES_VERSION_TESTNET = environ.get(
