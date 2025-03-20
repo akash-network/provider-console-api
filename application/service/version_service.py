@@ -70,8 +70,8 @@ class VersionService:
 
             return {
                 "needs_upgrade": needs_upgrade,
-                "app_version": {"current": app_current_version, "desired": app_desired_version},
-                "chart_version": {"current": chart_current_version, "desired": chart_desired_version},
+                "app_version": {"current": app_current_version, "desired": app_desired_version, "needs_upgrade": app_needs_upgrade},
+                "chart_version": {"current": chart_current_version, "desired": chart_desired_version, "needs_upgrade": chart_needs_upgrade},
             }
 
         except Exception as e:
@@ -90,7 +90,7 @@ class VersionService:
             
             needs_upgrade = check_upgrade_status["needs_upgrade"]
             app_version = check_upgrade_status["app_version"]["desired"]
-            chart_version = check_upgrade_status["chart_version"]["desired"]
+            app_needs_upgrade = check_upgrade_status["app_version"]["needs_upgrade"]
             if not needs_upgrade:
                 return {"status": "success", "message": "Network is up to date"}
             else:
@@ -126,9 +126,14 @@ class VersionService:
 
                 # Upgrade akash-node deployment
                 log.info(f"Upgrading akash-node to version {app_version}...")
+                if app_needs_upgrade:
+                    upgrade_command = f"helm upgrade --install akash-node akash/akash-node -n akash-services --set image.tag={app_version}"
+                else:
+                    upgrade_command = f"kubectl delete pod -n akash-services -l app=akash-node"
+                
                 stdout, stderr = run_ssh_command(
                     ssh_client,
-                    f"kubectl delete pod -n akash-services -l app=akash-node",
+                    upgrade_command,
                     True,
                     task_id=task_id,
                 )
