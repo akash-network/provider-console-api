@@ -453,16 +453,41 @@ users:
         )
         run_ssh_command(ssh_client, "apt-get autoremove -y", task_id=task_id)
 
+    def _get_ubuntu_version(self, ssh_client, task_id: str) -> str:
+        """Get Ubuntu version from the system"""
+        stdout, _ = run_ssh_command(
+            ssh_client,
+            "lsb_release -rs | grep -oE '[0-9]+\.[0-9]+'",
+            task_id=task_id
+        )
+        return stdout.strip()
+
     def _install_nvidia_drivers(
         self, ssh_client, control_input: ControlMachineInput, task_id: str
     ):
         log.info(f"Installing NVIDIA drivers on {control_input.hostname}")
         time.sleep(5)
-        run_ssh_command(
-            ssh_client, "apt-get install -y ubuntu-drivers-common", task_id=task_id
-        )
-        run_ssh_command(ssh_client, "ubuntu-drivers devices", task_id=task_id)
-        run_ssh_command(ssh_client, "ubuntu-drivers autoinstall", task_id=task_id)
+
+        # Get Ubuntu version
+        ubuntu_version = self._get_ubuntu_version(ssh_client, task_id)
+        ubuntu_codename = f"ubuntu{ubuntu_version.replace('.','')}"
+
+        # Install NVIDIA drivers
+        commands = [
+            f"wget https://developer.download.nvidia.com/compute/cuda/repos/{ubuntu_codename}/x86_64/3bf863cc.pub",
+            "apt-key add 3bf863cc.pub",
+            f"echo 'deb https://developer.download.nvidia.com/compute/cuda/repos/{ubuntu_codename}/x86_64/ /' | tee /etc/apt/sources.list.d/nvidia-official-repo.list",
+            "apt update",
+            "apt-get install build-essential dkms linux-headers-$(uname -r) -y",
+            "apt-get install nvidia-driver-565 -y",
+            "modprobe nvidia",
+            "nvidia-smi"
+        ]
+
+        for cmd in commands:
+            run_ssh_command(ssh_client, cmd, task_id=task_id)
+
+        log.info(f"NVIDIA drivers installed successfully on {control_input.hostname}")
 
     def _install_nvidia_container_runtime(
         self, ssh_client, control_input: ControlMachineInput, task_id: str
