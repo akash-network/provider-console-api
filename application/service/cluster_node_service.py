@@ -73,6 +73,10 @@ class ClusterNodeService:
 
         try:
             system_info = json.loads(stdout)
+            if not any(version in system_info["os"].lower() for version in ["ubuntu 22.04", "ubuntu 24.04"]):
+                raise self._create_application_error(
+                    "OS_001", "Only Ubuntu 22.04 and Ubuntu 24.04 are supported"
+                )
             system_info["storage"] = self._process_storage_data(
                 system_info.pop("storage_data")
             )
