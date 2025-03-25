@@ -1,7 +1,7 @@
 from uuid import uuid4
 from application.service.k3s_service import K3sService
 from application.service.provider_service import ProviderService
-from application.service.version_service import VersionService
+from application.service.upgrade_service import UpgradeService
 from application.service.persistent_storage_service import PersistentStorageService
 from application.model.provider_build_input import ProviderBuildInput
 from application.service.task_manager import TaskManager, Task
@@ -16,7 +16,7 @@ class AkashClusterService:
         self.k3s_service = K3sService()
         self.provider_service = ProviderService()
         self.persistent_storage_service = PersistentStorageService()
-        self.version_service = VersionService()
+        self.upgrade_service = UpgradeService()
         self.task_manager = TaskManager()
 
     async def create_akash_cluster(
@@ -336,7 +336,7 @@ class AkashClusterService:
                 str(uuid4()),
                 "upgrade_network",
                 "Upgrade network",
-                self.version_service.upgrade_network,
+                self.upgrade_service.upgrade_network,
                 ssh_client,
             ),
             Task(
@@ -353,6 +353,29 @@ class AkashClusterService:
         store_wallet_action_mapping(wallet_address, action_id)
         await self.task_manager.run_action(action_id)
         log.info(f"Network upgrade completed for action {action_id}")
+
+    async def upgrade_provider(self, action_id, control_machine, wallet_address):
+        ssh_client = get_ssh_client(control_machine)
+        provider_upgrade_tasks = [
+            Task(
+                str(uuid4()),
+                "upgrade_provider",
+                "Upgrade provider",
+                self.upgrade_service.upgrade_provider,
+                ssh_client,
+            ),
+            Task(
+                str(uuid4()),
+                "check_akash_node_readiness",
+                "Check Akash Node Readiness",
+                self.provider_service._check_akash_node_readiness,
+                ssh_client,
+            ),
+        ]
+        self.task_manager.create_action(action_id, "Upgrade Provider", provider_upgrade_tasks)
+        store_wallet_action_mapping(wallet_address, action_id)
+        await self.task_manager.run_action(action_id)
+        log.info(f"Provider upgrade completed for action {action_id}")
 
     async def create_persistent_storage(
         self, action_id, control_machine, storage_info, wallet_address
