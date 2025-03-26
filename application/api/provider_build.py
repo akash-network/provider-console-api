@@ -16,7 +16,7 @@ from application.utils.ssh_utils import get_ssh_client
 from application.service.wallet_service import WalletService
 from application.utils.logger import log
 from application.utils.dependency import verify_token
-from application.service.version_service import VersionService
+from application.service.upgrade_service import UpgradeService
 
 
 router = APIRouter()
@@ -315,8 +315,8 @@ async def update_provider_domain(
         )
 
 
-@router.post("/network/upgrade-status")
-async def check_network_upgrade(
+@router.post("/upgrade-status")
+async def check_upgrade(
     machine_input: Dict, wallet_address: str = Depends(verify_token)
 ) -> Dict:
     """Check if network upgrade is needed by comparing current and deployed versions"""
@@ -331,8 +331,8 @@ async def check_network_upgrade(
         control_machine_input = ControlMachineInput(**control_machine)
 
         ssh_client = get_ssh_client(control_machine_input)
-        version_service = VersionService()
-        return await version_service.check_upgrade_status(ssh_client)
+        upgrade_service = UpgradeService()
+        return await upgrade_service.check_upgrade_status(ssh_client)
     except Exception as e:
         log.error(f"Error checking network upgrade status: {str(e)}")
         raise HTTPException(
@@ -384,6 +384,47 @@ async def upgrade_network(
                 "error": {
                     "message": f"An error occurred while upgrading the network: {str(e)}",
                     "error_code": "PRV_006",
+                },
+            },
+        )
+
+@router.post("/provider/upgrade")
+async def upgrade_provider(
+    background_tasks: BackgroundTasks,
+    machine_input: Dict, wallet_address: str = Depends(verify_token)
+) -> Dict:
+    try:
+        control_machine = machine_input["control_machine"]
+        # Decode keyfile
+        if "keyfile" in control_machine and control_machine["keyfile"]:
+            control_machine["keyfile"] = decode_keyfile_to_uploadfile(
+                control_machine["keyfile"]
+            )
+
+        control_machine_input = ControlMachineInput(**control_machine)  
+
+        action_id = str(uuid4())
+        akash_cluster_service = AkashClusterService()
+        background_tasks.add_task(
+            akash_cluster_service.upgrade_provider,
+            action_id,
+            control_machine_input,
+            wallet_address
+        )
+
+        return {
+            "message": "Provider upgrade process started successfully",
+            "action_id": action_id,
+        }
+    except Exception as e:
+        log.error(f"Error upgrading provider: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"An error occurred while upgrading the provider: {str(e)}",
+                    "error_code": "PRV_007",
                 },
             },
         )
