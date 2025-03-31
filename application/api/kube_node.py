@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 import io
 from base64 import b64decode
 from fastapi.datastructures import UploadFile
 
-from application.exception.application_error import ApplicationError
+
 from application.utils.dependency import verify_token
 from application.utils.logger import log
 from application.model.machine_input import ControlMachineInput
+from application.service.k3s_service import K3sService
 from application.utils.ssh_utils import get_ssh_client
 from typing import Dict
 
@@ -35,12 +36,11 @@ async def list_nodes(data: Dict, wallet_address: str = Depends(verify_token)):
         control_machine_input = ControlMachineInput(**control_machine)
         ssh_client = get_ssh_client(control_machine_input)
 
-        pass
+        k3s_service = K3sService()
+        return k3s_service.list_nodes(ssh_client)
     except Exception as e:
         log.error(f"Unexpected error during listing nodes: {str(e)}")
-        raise ApplicationError(
-            payload={
-                "message": f"An error occurred during listing nodes process: {str(e)}",
-                "error_code": "KUBE_001",
-            }
-        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from e

@@ -1,5 +1,6 @@
 import time
 from fastapi import status
+import json
 
 from application.exception.application_error import ApplicationError
 from application.model.machine_input import ControlMachineInput, WorkerNodeInput
@@ -644,6 +645,41 @@ users:
                     "error": "Reboot Failed",
                     "message": f"Error during reboot process for node {control_input.hostname}: {str(e)}",
                 },
+            )
+        
+    def list_nodes(self, ssh_client):
+        try:
+            log.info("Listing nodes")
+            # Get detailed node information in JSON format
+            command = """kubectl get nodes -o json | jq '{
+              nodes: [.items[] | {
+                name: .metadata.name,
+                status: (.status.conditions[] | select(.type=="Ready") | .status),
+                roles: (
+                  [.metadata.labels | to_entries[] 
+                    | select(.key | startswith("node-role.kubernetes.io/")) 
+                    | .key 
+                    | sub("node-role.kubernetes.io/"; "")
+                  ] | join(",")
+                ),
+                age: .metadata.creationTimestamp,
+                version: .status.nodeInfo.kubeletVersion,
+                internalIP: (.status.addresses[] | select(.type == "InternalIP") | .address),
+                externalIP: (.status.addresses[] | select(.type == "ExternalIP") | .address),
+                osImage: .status.nodeInfo.osImage,
+                kernelVersion: .status.nodeInfo.kernelVersion,
+                containerRuntime: .status.nodeInfo.containerRuntimeVersion
+              }]
+            }'"""
+            stdout, stderr = run_ssh_command(ssh_client, command)
+            stdout = json.loads(stdout)
+            return stdout
+        except Exception as e:
+            log.error(f"Error listing nodes: {str(e)}")
+            raise ApplicationError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                error_code="K3S_015",
+                payload={"error": "Node Listing Failed", "message": f"Error listing nodes: {str(e)}"},
             )
 
     def _handle_unexpected_error(self, e, operation):
