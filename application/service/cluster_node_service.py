@@ -2,7 +2,7 @@ import base64
 import json
 import asyncio
 from typing import Dict, Tuple, List, Optional
-
+import socket
 import requests
 from fastapi import status
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -330,4 +330,91 @@ EOF"""
             raise self._create_application_error(
                 "WALLET_002",
                 f"Provided wallet address {wallet_address} does not match the control machine provider wallet address",
+            )
+
+    def _is_port_open(self, ip: str, port: int) -> bool:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            result = sock.connect_ex((ip, port))
+            sock.close()
+            return result == 0
+        except Exception as e:
+            log.error(f"Error checking port {port} on {ip}: {str(e)}")
+            return False
+
+
+    def check_ports(self, ip: str, ports: List[int]):
+        try:
+            open_ports = []
+            closed_ports = []
+
+            for port in ports:
+                if self._is_port_open(ip, port):
+                    open_ports.append(port)
+                else:
+                    closed_ports.append(port)
+
+            return {
+                "open_ports": open_ports,
+                "closed_ports": closed_ports,
+            }
+        except Exception as e:
+            log.error(f"Error checking ports on {ip}: {str(e)}")
+            raise self._create_application_error(
+                "PORT_001",
+                f"Failed to check ports on {ip}: {str(e)}"
+            )
+
+    def resolve_domain(self, domains: List[str]) -> Dict[str, List[Dict[str, str]]]:
+        try:
+            successful_resolutions = []
+            failed_resolutions = []
+            
+            for domain in domains:
+                try:
+                    # Get all IP addresses for the domain
+                    results = socket.getaddrinfo(domain, None, socket.AF_INET)
+                    
+                    # Extract unique IPs and filter for public IPs only
+                    ips = []
+                    for res in results:
+                        ip = res[4][0]
+                        # Skip private IP ranges
+                        if not (
+                            ip.startswith('10.') or
+                            ip.startswith('172.16.') or
+                            ip.startswith('192.168.') or
+                            ip.startswith('127.')
+                        ):
+                            ips.append(ip)
+                    
+                    # Remove duplicates while preserving order
+                    public_ips = list(dict.fromkeys(ips))
+                    
+                    if not public_ips:
+                        failed_resolutions.append(domain)
+                        continue
+                    
+                    # Add the domain and its first public IP to the result
+                    successful_resolutions.append({domain: public_ips[0]})
+                    
+                except socket.gaierror:
+                    failed_resolutions.append(domain)
+            
+            if failed_resolutions:
+                raise self._create_application_error(
+                    "DNS_002",
+                    f"Failed to resolve the following domains: {', '.join(failed_resolutions)}. "
+                    f"Successfully resolved domains: {successful_resolutions if successful_resolutions else 'none'}"
+                )
+            
+            return {"public_ips": successful_resolutions}
+            
+        except Exception as e:
+            if isinstance(e, ApplicationError):
+                raise e
+            raise self._create_application_error(
+                "DNS_003",
+                f"Unexpected error resolving domains: {str(e)}"
             )

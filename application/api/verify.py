@@ -155,3 +155,30 @@ async def verify_control_and_worker(data: dict):
         )
     except Exception as e:
         raise handle_unexpected_error(e, "VER_003")
+
+
+@router.post("/verify/open-ports")
+async def verify_open_ports(data: dict, wallet_address: str = Depends(verify_token)):
+    try:
+        public_ip = data["public_ip"]
+        ports = data["ports"]
+        cluster_node_service = ClusterNodeService()
+        ports_result = cluster_node_service.check_ports(public_ip, ports)
+        return ports_result
+    except ApplicationError as ae:
+        log.error(f"Error during open ports verification: {ae.payload}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ae.payload)
+
+
+@router.post("/verify/dns")
+async def verify_dns(data: dict, wallet_address: str = Depends(verify_token)):
+    try:
+        domains = data["domains"]
+        cluster_node_service = ClusterNodeService()
+        public_ips = cluster_node_service.resolve_domain(domains)
+        return public_ips
+    except ApplicationError as ae:
+        log.error(f"Error during domain name verification: {ae.payload}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ae.payload)
+    except Exception as e:
+        raise handle_unexpected_error(e, "VER_004")
