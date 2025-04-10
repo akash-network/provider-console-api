@@ -452,3 +452,113 @@ class AkashClusterService:
 
     def get_action_status(self, action_id: str):
         return self.task_manager.get_action_status(action_id)
+
+    async def add_nodes(self, action_id, control_machine, nodes, existing_nodes, wallet_address):
+        log.info(f"Adding nodes for action {action_id}")
+        try:
+            ssh_client = get_ssh_client(control_machine)
+            try:
+                add_nodes_tasks = self._create_add_nodes_tasks(nodes, existing_nodes, ssh_client)
+                self.task_manager.create_action(action_id, "Add Nodes", add_nodes_tasks)
+                store_wallet_action_mapping(wallet_address, action_id)
+                await self.task_manager.run_action(action_id)
+                log.info(f"Nodes added successfully for action {action_id}")
+            finally:
+                ssh_client.close()
+        except Exception as e:
+            log.error(f"Error during node addition: {str(e)}")
+            raise
+
+    def _create_add_nodes_tasks(self, nodes, existing_nodes, ssh_client):
+        add_nodes_tasks = []
+
+        # Get existing node numbers
+        existing_numbers = set()
+        for node in existing_nodes:
+            if node["name"].startswith("node"):
+                try:
+                    num = int(node["name"].replace("node", ""))
+                    existing_numbers.add(num)
+                except ValueError:
+                    continue
+
+        for node in nodes:
+            # Find first missing number or use next number after highest existing
+            next_num = 1
+            while next_num in existing_numbers:
+                next_num += 1
+            existing_numbers.add(next_num)
+            node_name = f"node{next_num}"
+
+            if node.is_control_plane:
+                add_nodes_tasks.append(
+                    Task(
+                        str(uuid4()),
+                        f"add_control_node_{node_name}",
+                        f"Add control node {node.hostname} to the cluster",
+                        self.k3s_service._join_control_node,
+                        ssh_client,
+                        node,
+                        node_name,
+                    )
+                )
+            else:
+                add_nodes_tasks.append(
+                    Task(
+                        str(uuid4()),
+                        f"add_worker_node_{node_name}",
+                        f"Add worker node {node.hostname} to the cluster",
+                        self.k3s_service._join_worker_node,
+                        ssh_client,
+                        node,
+                        node_name,
+                    )
+                )
+
+            if "install_gpu_drivers" in node and node.install_gpu_drivers:
+                add_nodes_tasks.append(
+                    Task(
+                        str(uuid4()),
+                        f"install_gpu_drivers_{node.hostname}",
+                        f"Install GPU drivers and toolkit on {node.hostname}",
+                        self.k3s_service._install_gpu_drivers_and_toolkit,
+                        ssh_client,
+                        node,
+                        "worker_node",
+                    )
+                )
+
+        return add_nodes_tasks
+
+    async def remove_nodes(self, action_id, control_machine, node_internal_ip, node_name, node_type, wallet_address):
+        log.info(f"Removing nodes for action {action_id}")
+        try:
+            ssh_client = get_ssh_client(control_machine)
+            try:
+                remove_nodes_tasks = self._create_remove_nodes_tasks(ssh_client, node_internal_ip, node_name, node_type)
+                self.task_manager.create_action(action_id, "Remove Nodes", remove_nodes_tasks)
+                store_wallet_action_mapping(wallet_address, action_id)
+                await self.task_manager.run_action(action_id)
+                log.info(f"Nodes removed successfully for action {action_id}")
+            finally:
+                ssh_client.close()
+        except Exception as e:
+            log.error(f"Error during node removal: {str(e)}")
+            raise
+
+    def _create_remove_nodes_tasks(self, ssh_client, node_internal_ip, node_name, node_type):
+        remove_nodes_tasks = []
+
+        remove_nodes_tasks.append(
+            Task(
+                str(uuid4()),
+                f"remove_node_{node_name}",
+                f"Remove node {node_name}",
+                self.k3s_service._remove_node,
+                ssh_client,
+                node_internal_ip,
+                node_name,
+                node_type,
+            )
+        )
+        return remove_nodes_tasks
