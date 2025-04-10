@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
 
     from .api import (
         action_status,
+        kube_node,
         persistent_storage,
         provider_build,
         provider,
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
 
     routers = [
         action_status,
+        kube_node,
         persistent_storage,
         provider_build,
         provider,

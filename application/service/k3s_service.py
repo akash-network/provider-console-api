@@ -1,5 +1,9 @@
 import time
 from fastapi import status
+import json
+import io
+
+from fastapi import UploadFile
 
 from application.exception.application_error import ApplicationError
 from application.model.machine_input import ControlMachineInput, WorkerNodeInput
@@ -14,6 +18,7 @@ from application.utils.ssh_utils import (
 class K3sService:
 
     INTERNAL_IP_CMD = r"""ip -4 -o a | while read -r line; do set -- $line; if echo "$4" | grep -qE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)'; then echo "${4%/*}"; break; fi; done"""
+    SSH_KEY_CMD = "cat ~/.ssh/id_ed25519"
 
     def check_existing_installations(self, control_input: ControlMachineInput):
         log.info(f"Checking for existing installations on {control_input.hostname}")
@@ -404,6 +409,47 @@ users:
         except Exception as e:
             self._handle_unexpected_error(e, "K3s installation on worker")
 
+
+    def _remove_node(
+        self,
+        ssh_client,
+        node_internal_ip: str,
+        node_name: str,
+        node_type: str,
+        task_id: str,
+    ):
+        log.info(f"Removing {node_type} node {node_name} from the cluster")
+        try:
+            # Connect to the worker node through the control node
+            worker_ssh_client = self._get_worker_ssh_client(ssh_client, node_internal_ip)
+            try:
+                # Remove the worker node from the cluster
+                drain_command = f"kubectl drain {node_name} --ignore-daemonsets --delete-emptydir-data --force"
+                run_ssh_command(ssh_client, drain_command, task_id=task_id)
+                
+                # Remove the worker node from the cluster
+                delete_command = f"kubectl delete node {node_name}"
+                run_ssh_command(ssh_client, delete_command, task_id=task_id)
+
+                if node_type == "control_plane_node":
+                    uninstall_command = f"/usr/local/bin/k3s-uninstall.sh" 
+                else:
+                    uninstall_command = f"/usr/local/bin/k3s-agent-uninstall.sh" 
+                    
+                run_ssh_command(worker_ssh_client, uninstall_command, task_id=task_id)
+
+                log.info(f"Worker node {node_name} uninstalled from the cluster")
+                return {
+                    "message": "Worker node removed from the cluster successfully"
+                }
+
+            finally:
+                worker_ssh_client.close()
+        except ApplicationError:
+            raise
+        except Exception as e:
+            self._handle_unexpected_error(e, "K3s installation on worker")
+
     def _install_gpu_drivers_and_toolkit(
         self,
         ssh_client,
@@ -645,6 +691,70 @@ users:
                     "message": f"Error during reboot process for node {control_input.hostname}: {str(e)}",
                 },
             )
+        
+    def list_nodes(self, ssh_client):
+        try:
+            log.info("Listing nodes")
+            # Get detailed node information in JSON format
+            command = """kubectl get nodes -o json | jq '{
+                    nodes: [.items[] | {
+                        name: .metadata.name,
+                        status: (
+                        (.status.conditions // [] | map(select(.type == "Ready")) | .[0]?.status) // "Unknown"
+                        ),
+                        roles: (
+                        [.metadata.labels | to_entries[]
+                            | select(.key | startswith("node-role.kubernetes.io/"))
+                            | .key
+                            | sub("node-role.kubernetes.io/"; "")
+                        ] | join(",")
+                        ),
+                        age: .metadata.creationTimestamp,
+                        version: .status.nodeInfo.kubeletVersion,
+                        internalIP: (
+                        (.status.addresses[]? | select(.type == "InternalIP") | .address) // "N/A"
+                        ),
+                        externalIP: (
+                        (.status.addresses[]? | select(.type == "ExternalIP") | .address) // "N/A"
+                        ),
+                        osImage: .status.nodeInfo.osImage,
+                        kernelVersion: .status.nodeInfo.kernelVersion,
+                        containerRuntime: .status.nodeInfo.containerRuntimeVersion
+                    }]}'"""
+            stdout, stderr = run_ssh_command(ssh_client, command)
+            stdout = json.loads(stdout)
+            return stdout
+        except Exception as e:
+            log.error(f"Error listing nodes: {str(e)}")
+            raise ApplicationError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                error_code="K3S_015",
+                payload={"error": "Node Listing Failed", "message": f"Error listing nodes: {str(e)}"},
+            )
+
+
+    def _get_worker_ssh_client(self, control_ssh_client, node_internal_ip: str):
+        """Create SSH client for worker node using key from control node."""
+        worker_keyfile_content, _ = run_ssh_command(
+            control_ssh_client, self.SSH_KEY_CMD, check_exit_status=True
+        )
+        worker_keyfile = UploadFile(
+            filename="keyfile", file=io.BytesIO(worker_keyfile_content.encode())
+        )
+
+        worker_input = WorkerNodeInput(
+            hostname=node_internal_ip,
+            username="root",
+            port=22,
+            keyfile=worker_keyfile,
+        )
+        return self._connect_to_worker_node(control_ssh_client, worker_input)
+
+    def _connect_to_worker_node(
+        self, control_ssh_client, worker_input: WorkerNodeInput
+    ):
+        """Connect to worker node through control node."""
+        return connect_to_worker_node(control_ssh_client, worker_input)
 
     def _handle_unexpected_error(self, e, operation):
         log.error(f"Unexpected error during {operation}: {str(e)}")
