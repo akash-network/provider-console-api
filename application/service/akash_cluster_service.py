@@ -56,14 +56,21 @@ class AkashClusterService:
         control_nodes = []
         worker_nodes = []
 
-        if len(nodes) == 1:
-            control_nodes = nodes
-        elif len(nodes) < 5:
+        total_nodes = len(nodes)
+        
+        # Determine number of control nodes based on total nodes
+        if total_nodes <= 3:
             control_nodes = [nodes[0]]
             worker_nodes = nodes[1:]
-        else:
+        elif total_nodes <= 50:
             control_nodes = nodes[:3]
             worker_nodes = nodes[3:]
+        elif total_nodes <= 100:
+            control_nodes = nodes[:5]
+            worker_nodes = nodes[5:]
+        else:
+            control_nodes = nodes[:7]
+            worker_nodes = nodes[7:]
 
         k3s_tasks = []
 
