@@ -522,7 +522,7 @@ class AkashClusterService:
                     )
                 )
 
-            if "install_gpu_drivers" in node and node.install_gpu_drivers:
+            if node.install_gpu_drivers:
                 add_nodes_tasks.append(
                     Task(
                         str(uuid4()),
