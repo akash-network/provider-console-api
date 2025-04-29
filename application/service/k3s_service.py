@@ -284,6 +284,8 @@ users:
                 ssh_client, f"sudo cp {kubeconfig_path} ~/.kube/config", task_id=task_id
             )
 
+            run_ssh_command(ssh_client, "chmod 600 ~/.kube/config", task_id=task_id)
+
             # Set correct permissions for the config file
             run_ssh_command(
                 ssh_client,
@@ -473,7 +475,7 @@ users:
                 ssh_connection, control_input, task_id
             )
             self._configure_nvidia_runtime(ssh_connection, control_input, task_id)
-            self._reboot_node(ssh_connection, control_input, task_id)
+            # self._reboot_node(ssh_client, control_input, node_type, task_id)
 
             log.info(
                 f"GPU drivers and toolkit installation completed successfully on {control_input.hostname}"
@@ -629,67 +631,63 @@ users:
             )
 
     def _reboot_node(
-        self, ssh_client, control_input: ControlMachineInput, task_id: str
+        self, ssh_client, control_input: ControlMachineInput, node_type: str, task_id: str
     ):
-        log.info(f"Checking NVIDIA driver status on {control_input.hostname}")
+        log.info(f"Initiating reboot for node {control_input.hostname}")
+
+        # Get appropriate SSH connection based on node type
+        ssh_connection = (
+            connect_to_worker_node(ssh_client, control_input)
+            if node_type == "worker_node"
+            else ssh_client
+        )
+
         try:
-            # Check NVIDIA driver status
-            stdout, stderr = run_ssh_command(
-                ssh_client,
-                "nvidia-smi --version",
-                check_exit_status=False,
-                task_id=task_id,
-            )
+            # Initiate reboot and wait for node to go down
+            with ssh_connection:
+                run_ssh_command(ssh_connection, "reboot", task_id=task_id)
+                time.sleep(60)  # Wait for node to go down
 
-            if (
-                "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver"
-                in stdout
-            ):
-                log.info(
-                    f"NVIDIA driver not properly loaded on {control_input.hostname}, initiating reboot"
-                )
-                run_ssh_command(ssh_client, "reboot", task_id=task_id)
+            # Wait for node to come back online (max 5 minutes)
+            max_attempts = 30
+            retry_interval = 10
+            
+            for attempt in range(max_attempts):
+                try:
+                    # Get new SSH connection
+                    new_connection = (
+                        connect_to_worker_node(ssh_client, control_input)
+                        if node_type == "worker_node"
+                        else get_ssh_client(control_input)
+                    )
 
-                # Wait for the node to go down
-                time.sleep(10)
+                    # Verify node is up
+                    with new_connection as client:
+                        run_ssh_command(client, "uptime", task_id=task_id)
+                        log.info(f"Node {control_input.hostname} is back online")
+                        return
 
-                # Wait for the node to come back online (max 5 minutes)
-                max_attempts = 30
-                attempt = 0
-                while attempt < max_attempts:
-                    try:
-                        with get_ssh_client(control_input) as new_ssh_client:
-                            # Try to run a simple command to verify SSH connectivity
-                            run_ssh_command(new_ssh_client, "uptime", task_id=task_id)
-                            log.info(f"Node {control_input.hostname} is back online")
-                            return
-                    except Exception:
-                        attempt += 1
-                        if attempt < max_attempts:
-                            log.info(
-                                f"Waiting for node {control_input.hostname} to come back online... (attempt {attempt}/{max_attempts})"
-                            )
-                            time.sleep(10)
-
-                raise Exception(
-                    f"Node {control_input.hostname} did not come back online after reboot"
-                )
-            else:
-                log.info(
-                    f"NVIDIA driver is properly loaded on {control_input.hostname}, no reboot needed"
-                )
+                except Exception:
+                    if attempt < max_attempts - 1:
+                        log.info(
+                            f"Waiting for node {control_input.hostname} to come back online... "
+                            f"(attempt {attempt + 1}/{max_attempts})"
+                        )
+                        time.sleep(retry_interval)
+                    else:
+                        raise Exception(
+                            f"Node {control_input.hostname} did not come back online after reboot"
+                        )
 
         except Exception as e:
-            log.error(
-                f"Error during reboot process for node {control_input.hostname}: {str(e)}"
-            )
+            log.error(f"Error during reboot process for node {control_input.hostname}: {str(e)}")
             raise ApplicationError(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 error_code="K3S_014",
                 payload={
-                    "error": "Reboot Failed",
-                    "message": f"Error during reboot process for node {control_input.hostname}: {str(e)}",
-                },
+                    "error": "Reboot Failed", 
+                    "message": f"Error during reboot process for node {control_input.hostname}: {str(e)}"
+                }
             )
         
     def list_nodes(self, ssh_client):

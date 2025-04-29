@@ -273,7 +273,7 @@ EOF
             for node in install_gpu_driver_nodes:
                 time.sleep(2)
                 log.info(f"Labeling {node} for NVIDIA support...")
-                label_command = f"kubectl label nodes {node} allow-nvdp=true"
+                label_command = f"kubectl label nodes {node} allow-nvdp=true nvidia.com/gpu.present=true --overwrite"
                 run_ssh_command(ssh_client, label_command, task_id=task_id)
 
             log.info("Adding NVIDIA Device Plugin Helm repository...")
