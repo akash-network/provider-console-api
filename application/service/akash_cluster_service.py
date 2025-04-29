@@ -28,31 +28,28 @@ class AkashClusterService:
         log.info(f"Starting Akash cluster creation for action {action_id}")
 
         try:
-            ssh_client = get_ssh_client(provider_build_input.nodes[0])
-            try:
-                k3s_tasks = self._create_k3s_tasks(
-                    provider_build_input.nodes, ssh_client
-                )
-                provider_tasks = self._create_provider_tasks(
-                    provider_build_input, wallet_address, ssh_client
-                )
-                self.task_manager.create_action(
-                    action_id,
-                    "Build Cluster",
-                    k3s_tasks + provider_tasks,
-                )
-                store_wallet_action_mapping(wallet_address, action_id)
-                await self.task_manager.run_action(action_id)
-                log.info(f"Akash cluster creation completed for action {action_id}")
-            finally:
-                ssh_client.close()
+            k3s_tasks = self._create_k3s_tasks(
+                provider_build_input.nodes
+            )
+            provider_tasks = self._create_provider_tasks(
+                provider_build_input, wallet_address
+            )
+            self.task_manager.create_action(
+                action_id,
+                "Build Cluster",
+                k3s_tasks + provider_tasks,
+            )
+            store_wallet_action_mapping(wallet_address, action_id)
+            await self.task_manager.run_action(action_id)
+            log.info(f"Akash cluster creation completed for action {action_id}")
         except Exception as e:
             log.error(
                 f"Error during Akash cluster creation for action {action_id}: {str(e)}"
             )
             raise
 
-    def _create_k3s_tasks(self, nodes, ssh_client):
+    def _create_k3s_tasks(self, nodes):
+        ssh_client = get_ssh_client(nodes[0])
         control_nodes = []
         worker_nodes = []
 
@@ -171,10 +168,25 @@ class AkashClusterService:
                     )
                 )
 
+        for i, node in reversed(list(enumerate(nodes))):
+            if node.install_gpu_drivers:
+                node_type = "main_node" if i == 0 else "worker_node"
+                k3s_tasks.append(
+                    Task(
+                        str(uuid4()),
+                        f"restart_node_{node.hostname}",
+                        f"Restart node {node.hostname}",
+                        self.k3s_service._reboot_node,
+                        ssh_client,
+                        node,
+                        node_type,
+                    )
+                )
+                
         return k3s_tasks
 
     def _create_provider_tasks(
-        self, provider_build_input: ProviderBuildInput, wallet_address: str, ssh_client
+        self, provider_build_input: ProviderBuildInput, wallet_address: str
     ):
         chain_id = Config.CHAIN_ID
         provider_version = Config.PROVIDER_SERVICES_VERSION.replace("v", "")
@@ -185,6 +197,8 @@ class AkashClusterService:
         attributes = provider_build_input.provider.attributes
         pricing = provider_build_input.provider.pricing
         email = provider_build_input.provider.config.email
+
+        ssh_client = get_ssh_client(provider_build_input.nodes[0])
 
         # Initialize an empty list to store nodes that require GPU driver installation
         install_gpu_driver_nodes = []
