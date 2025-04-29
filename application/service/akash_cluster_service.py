@@ -3,6 +3,7 @@ from application.service.k3s_service import K3sService
 from application.service.provider_service import ProviderService
 from application.service.upgrade_service import UpgradeService
 from application.service.persistent_storage_service import PersistentStorageService
+from application.service.cluster_node_service import ClusterNodeService
 from application.model.provider_build_input import ProviderBuildInput
 from application.service.task_manager import TaskManager, Task
 from application.utils.logger import log
@@ -73,6 +74,17 @@ class AkashClusterService:
 
         # Tasks for the first control node (main control node)
         main_control_node = control_nodes[0]
+
+        cluster_node_service = ClusterNodeService()
+        system_info = cluster_node_service._gather_system_info(ssh_client)
+
+        gpu_name = None
+
+        if "gpu" in system_info:
+            gpu = system_info["gpu"]
+            if gpu["count"] > 0:
+                gpu_name = gpu["name"]
+
         k3s_tasks.extend(
             [
                 Task(
@@ -165,6 +177,7 @@ class AkashClusterService:
                         ssh_client,
                         node,
                         node_type,
+                        gpu_name,
                     )
                 )
 
@@ -493,6 +506,16 @@ class AkashClusterService:
     def _create_add_nodes_tasks(self, nodes, existing_nodes, ssh_client):
         add_nodes_tasks = []
 
+        cluster_node_service = ClusterNodeService()
+        system_info = cluster_node_service._gather_system_info(ssh_client)
+
+        gpu_name = None
+
+        if "gpu" in system_info:
+            gpu = system_info["gpu"]
+            if gpu["count"] > 0:
+                gpu_name = gpu["name"]
+
         # Get existing node numbers
         existing_numbers = set()
         for node in existing_nodes:
@@ -543,6 +566,19 @@ class AkashClusterService:
                         f"install_gpu_drivers_{node.hostname}",
                         f"Install GPU drivers and toolkit on {node.hostname}",
                         self.k3s_service._install_gpu_drivers_and_toolkit,
+                        ssh_client,
+                        node,
+                        "worker_node",
+                        gpu_name,
+                    )
+                )
+
+                add_nodes_tasks.append(
+                    Task(
+                        str(uuid4()),
+                        f"restart_node_{node.hostname}",
+                        f"Restart node {node.hostname}",
+                        self.k3s_service._reboot_node,
                         ssh_client,
                         node,
                         "worker_node",
