@@ -538,7 +538,10 @@ users:
             "nvidia-smi"
         ]
 
-        commands = nvidia_570_commands if gpu_name == "rtx5090" else nvidia_565_commands
+        if gpu_name and gpu_name == "rtx5090":
+            commands = nvidia_570_commands
+        else:
+            commands = nvidia_565_commands
 
         for cmd in commands:
             run_ssh_command(ssh_client, cmd, task_id=task_id)
