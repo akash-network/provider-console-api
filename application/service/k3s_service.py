@@ -475,7 +475,6 @@ users:
                 ssh_connection, control_input, task_id
             )
             self._configure_nvidia_runtime(ssh_connection, control_input, task_id)
-            # self._reboot_node(ssh_client, control_input, node_type, task_id)
 
             log.info(
                 f"GPU drivers and toolkit installation completed successfully on {control_input.hostname}"
