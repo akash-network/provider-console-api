@@ -457,6 +457,7 @@ users:
         ssh_client,
         control_input: ControlMachineInput,
         node_type: str,
+        gpu_name: str,
         task_id: str,
     ):
         log.info(
@@ -470,7 +471,7 @@ users:
                 else ssh_client
             )
             self._update_system(ssh_connection, control_input, task_id)
-            self._install_nvidia_drivers(ssh_connection, control_input, task_id)
+            self._install_nvidia_drivers(ssh_connection, control_input, gpu_name, task_id)
             self._install_nvidia_container_runtime(
                 ssh_connection, control_input, task_id
             )
@@ -510,7 +511,7 @@ users:
         return stdout.strip()
 
     def _install_nvidia_drivers(
-        self, ssh_client, control_input: ControlMachineInput, task_id: str
+        self, ssh_client, control_input: ControlMachineInput, gpu_name: str, task_id: str
     ):
         log.info(f"Installing NVIDIA drivers on {control_input.hostname}")
         time.sleep(5)
@@ -520,7 +521,7 @@ users:
         ubuntu_codename = f"ubuntu{ubuntu_version.replace('.','')}"
 
         # Install NVIDIA drivers
-        commands = [
+        nvidia_565_commands = [
             f"wget https://developer.download.nvidia.com/compute/cuda/repos/{ubuntu_codename}/x86_64/3bf863cc.pub",
             "apt-key add 3bf863cc.pub",
             f"echo 'deb https://developer.download.nvidia.com/compute/cuda/repos/{ubuntu_codename}/x86_64/ /' | tee /etc/apt/sources.list.d/nvidia-official-repo.list",
@@ -530,6 +531,14 @@ users:
             "modprobe nvidia",
             "nvidia-smi"
         ]
+
+        nvidia_570_commands = [
+            "apt update",
+            "apt-get install nvidia-driver-570-server-open -y",
+            "nvidia-smi"
+        ]
+
+        commands = nvidia_570_commands if gpu_name == "rtx5090" else nvidia_565_commands
 
         for cmd in commands:
             run_ssh_command(ssh_client, cmd, task_id=task_id)
