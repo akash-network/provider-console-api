@@ -315,6 +315,49 @@ async def update_provider_domain(
         )
 
 
+@router.post("/update-provider-email")
+async def update_email(
+    data: Dict,
+    wallet_address: str = Depends(verify_token),
+):
+    try:
+        control_machine = data["control_machine"]
+        email = data["email"]
+
+        # Decode keyfile
+        if "keyfile" in control_machine and control_machine["keyfile"]:
+            control_machine["keyfile"] = decode_keyfile_to_uploadfile(
+                control_machine["keyfile"]
+            )
+
+        control_machine_input = ControlMachineInput(**control_machine)
+
+        action_id = str(uuid4())
+        akash_cluster_service = AkashClusterService()
+
+        await akash_cluster_service.update_provider_email(
+            action_id, control_machine_input, email, wallet_address
+        )
+
+        return {
+            "message": "Provider email update process started successfully",
+            "action_id": action_id,
+        }
+    
+    except Exception as e:
+        log.error(f"Error updating provider email: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"An error occurred during provider email update: {str(e)}",
+                    "error_code": "PRV_002",
+                },
+            },
+        )
+
+
 @router.post("/upgrade-status")
 async def check_upgrade(
     machine_input: Dict, wallet_address: str = Depends(verify_token)

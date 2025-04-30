@@ -531,6 +531,15 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
         await self.restart_provider_service(ssh_client)
         log.info("Provider domain updated successfully.")
 
+    async def update_provider_email(self, ssh_client, email, task_id: str):
+        run_ssh_command(
+            ssh_client,
+            f"yq eval '.email = \"{email}\"' -i ~/provider/provider.yaml",
+            task_id=task_id,
+        )
+        await self.restart_provider_service(ssh_client)
+        log.info("Provider email updated successfully.")
+
     def _get_base64_encoded_key(self, ssh_client):
         log.info("Retrieving and encoding the key...")
         try:

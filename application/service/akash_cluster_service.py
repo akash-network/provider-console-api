@@ -363,6 +363,23 @@ class AkashClusterService:
         await self.task_manager.run_action(action_id)
         log.info(f"Provider domain update completed for action {action_id}")
 
+    async def update_provider_email(
+        self, action_id, control_machine, email, wallet_address
+    ):
+        ssh_client = get_ssh_client(control_machine)
+        task = Task(
+            str(uuid4()),
+            "update_provider_email",
+            "Update provider email",
+            self.provider_service.update_provider_email,
+            ssh_client,
+            email,
+        )
+        self.task_manager.create_action(action_id, "Update Provider Email", [task])
+        store_wallet_action_mapping(wallet_address, action_id)
+        await self.task_manager.run_action(action_id)
+        log.info(f"Provider email update completed for action {action_id}")
+
     async def upgrade_network(self, action_id, control_machine, wallet_address):
         ssh_client = get_ssh_client(control_machine)
         network_upgrade_tasks = [
