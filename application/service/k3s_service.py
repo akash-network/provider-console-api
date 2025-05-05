@@ -136,6 +136,7 @@ profiles:
           weight: 1
 EOF
 """
+            run_ssh_command(ssh_client, "mkdir -p /var/lib/rancher/k3s/server/etc", task_id=task_id)
             run_ssh_command(ssh_client, scheduler_config, task_id=task_id)
 
             log.info(f"Executing K3s initialization command: {install_command}")
@@ -408,6 +409,7 @@ profiles:
           weight: 1
 EOF
 """
+                run_ssh_command(worker_ssh_client, "mkdir -p /var/lib/rancher/k3s/server/etc", task_id=task_id)
                 run_ssh_command(worker_ssh_client, scheduler_config, task_id=task_id)
 
                 # Execute the installation command
