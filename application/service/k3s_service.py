@@ -87,7 +87,7 @@ class K3sService:
             internal_ip = internal_ip.strip()
 
             install_exec += (
-                f" --node-ip={internal_ip} --advertise-address={internal_ip}"
+                f" --node-ip={internal_ip} --advertise-address={internal_ip} --kube-scheduler-arg=config=/var/lib/rancher/k3s/server/etc/scheduler-config.yaml"
             )
             log.info(f"Setting node IP to {internal_ip}")
 
@@ -105,6 +105,38 @@ class K3sService:
             time.sleep(5)
 
             install_command = f"curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='{install_exec} --node-name node1' sh -"
+
+            scheduler_config = """
+cat > /var/lib/rancher/k3s/server/etc/scheduler-config.yaml << EOF
+apiVersion: kubescheduler.config.k8s.io/v1
+kind: KubeSchedulerConfiguration
+clientConnection:
+  kubeconfig: "/var/lib/rancher/k3s/server/cred/scheduler.kubeconfig"
+leaderElection:
+  leaderElect: true
+profiles:
+- schedulerName: default-scheduler
+  plugins:
+    score:
+      enabled:
+      - name: NodeResourcesFit
+  pluginConfig:
+  - name: NodeResourcesFit
+    args:
+      scoringStrategy:
+        type: MostAllocated
+        resources:
+        - name: nvidia.com/gpu
+          weight: 10
+        - name: memory
+          weight: 1
+        - name: cpu
+          weight: 1
+        - name: ephemeral-storage
+          weight: 1
+EOF
+"""
+            run_ssh_command(ssh_client, scheduler_config, task_id=task_id)
 
             log.info(f"Executing K3s initialization command: {install_command}")
             run_ssh_command(ssh_client, install_command, task_id=task_id)
@@ -339,12 +371,44 @@ users:
                 internal_ip = internal_ip.strip()
 
                 # Set up the installation command
-                install_exec = f"--disable=traefik --flannel-backend=none --node-ip={internal_ip} --node-name {node_name}"
+                install_exec = f"--disable=traefik --flannel-backend=none --node-ip={internal_ip} --node-name {node_name} --kube-scheduler-arg=config=/var/lib/rancher/k3s/server/etc/scheduler-config.yaml"
 
                 if node_input.hostname:
                     install_exec += f" --tls-san={node_input.hostname}"
 
                 install_command = f"""curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server {install_exec}" K3S_URL="https://{master_ip}:6443" K3S_TOKEN="{token}" sh -"""
+
+                scheduler_config = """
+cat > /var/lib/rancher/k3s/server/etc/scheduler-config.yaml << EOF
+apiVersion: kubescheduler.config.k8s.io/v1
+kind: KubeSchedulerConfiguration
+clientConnection:
+  kubeconfig: "/var/lib/rancher/k3s/server/cred/scheduler.kubeconfig"
+leaderElection:
+  leaderElect: true
+profiles:
+- schedulerName: default-scheduler
+  plugins:
+    score:
+      enabled:
+      - name: NodeResourcesFit
+  pluginConfig:
+  - name: NodeResourcesFit
+    args:
+      scoringStrategy:
+        type: MostAllocated
+        resources:
+        - name: nvidia.com/gpu
+          weight: 10
+        - name: memory
+          weight: 1
+        - name: cpu
+          weight: 1
+        - name: ephemeral-storage
+          weight: 1
+EOF
+"""
+                run_ssh_command(worker_ssh_client, scheduler_config, task_id=task_id)
 
                 # Execute the installation command
                 stdout, stderr = run_ssh_command(
