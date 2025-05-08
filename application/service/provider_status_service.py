@@ -3,6 +3,8 @@ from base64 import b64decode
 from fastapi.datastructures import UploadFile
 import io
 import asyncio
+import requests
+import urllib3
 
 from fastapi import status
 from concurrent.futures import TimeoutError
@@ -126,3 +128,14 @@ async def check_provider_online_status(chain_id: str, wallet_address: str):
                 "message": str(e),
             },
         )
+
+async def check_provider_online_status_v2(chain_id: str, provider_uri: str):
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    try:
+        response = requests.get(f"{provider_uri}/status", verify=False, timeout=20)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        log.error(f"Error checking provider online status v2: {e}")
+        return False
