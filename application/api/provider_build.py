@@ -506,3 +506,48 @@ async def restart_provider(
                 },
             },
         )
+
+
+@router.post("/uninstall-provider")
+async def uninstall_provider(
+    background_tasks: BackgroundTasks,
+    data: Dict,
+    wallet_address: str = Depends(verify_token),
+):
+    try:
+        control_machine = data["control_machine"]
+
+        # Decode keyfile
+        if "keyfile" in control_machine and control_machine["keyfile"]:
+            control_machine["keyfile"] = decode_keyfile_to_uploadfile(
+                control_machine["keyfile"]
+            )
+
+        control_machine_input = ControlMachineInput(**control_machine)
+
+        action_id = str(uuid4())
+        akash_cluster_service = AkashClusterService()
+
+        background_tasks.add_task(
+            akash_cluster_service.uninstall_provider,
+            action_id,
+            control_machine_input,
+            wallet_address
+        )
+
+        return {
+            "message": "Provider uninstall process started successfully",
+            "action_id": action_id,
+        }
+    except Exception as e:
+        log.error(f"Error uninstalling provider: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"An error occurred while uninstalling the provider: {str(e)}",
+                    "error_code": "PRV_008",
+                },
+            },
+        )

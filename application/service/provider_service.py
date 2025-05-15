@@ -540,6 +540,19 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
         await self.restart_provider_service(ssh_client)
         log.info("Provider email updated successfully.")
 
+
+    def uninstall_provider_service(self, ssh_client, task_id: str):
+        log.info("Uninstalling provider service...")
+
+        commands = [
+            "/usr/local/bin/k3s-uninstall.sh",
+            "rm -rf ~/bin/ ~/calico.yaml ~/ingress-nginx-custom.yaml ~/key.pem  ~/provider/ ~/.akash/ ~/.kube/",
+        ]
+        for cmd in commands:
+            run_ssh_command(ssh_client, cmd, task_id=task_id)
+        log.info("Provider service uninstalled successfully.")
+
+
     def _get_base64_encoded_key(self, ssh_client):
         log.info("Retrieving and encoding the key...")
         try:
