@@ -636,3 +636,19 @@ class AkashClusterService:
             )
         )
         return remove_nodes_tasks
+    
+
+    async def uninstall_provider(self, action_id, control_machine, wallet_address):
+        ssh_client = get_ssh_client(control_machine)
+
+        uninstall_provider_task = Task(
+            str(uuid4()),
+            "uninstall_provider",
+            "Uninstall provider",
+            self.provider_service.uninstall_provider_service,
+            ssh_client,
+        )
+        self.task_manager.create_action(action_id, "Uninstall Provider", [uninstall_provider_task])
+        store_wallet_action_mapping(wallet_address, action_id)
+        await self.task_manager.run_action(action_id)
+        log.info(f"Provider uninstallation completed for action {action_id}")
