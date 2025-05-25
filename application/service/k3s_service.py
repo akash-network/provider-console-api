@@ -599,8 +599,11 @@ EOF
         ]
 
         nvidia_570_commands = [
+            "apt install linux-headers-$(uname -r) -y",
+            f"wget https://developer.download.nvidia.com/compute/cuda/repos/{ubuntu_codename}/x86_64/cuda-keyring_1.1-1_all.deb",
+            "dpkg -i cuda-keyring_1.1-1_all.deb",
             "apt update",
-            "apt-get install nvidia-driver-570-server-open -y",
+            "apt install nvidia-open -y",
             "nvidia-smi"
         ]
 
