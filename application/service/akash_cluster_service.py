@@ -181,20 +181,20 @@ class AkashClusterService:
                     )
                 )
 
-        for i, node in reversed(list(enumerate(nodes))):
-            if node.install_gpu_drivers:
-                node_type = "main_node" if i == 0 else "worker_node"
-                k3s_tasks.append(
-                    Task(
-                        str(uuid4()),
-                        f"restart_node_{node.hostname}",
-                        f"Restart node {node.hostname}",
-                        self.k3s_service._reboot_node,
-                        ssh_client,
-                        node,
-                        node_type,
-                    )
-                )
+        # for i, node in reversed(list(enumerate(nodes))):
+        #     if node.install_gpu_drivers:
+        #         node_type = "main_node" if i == 0 else "worker_node"
+        #         k3s_tasks.append(
+        #             Task(
+        #                 str(uuid4()),
+        #                 f"restart_node_{node.hostname}",
+        #                 f"Restart node {node.hostname}",
+        #                 self.k3s_service._reboot_node,
+        #                 ssh_client,
+        #                 node,
+        #                 node_type,
+        #             )
+        #         )
                 
         return k3s_tasks
 
