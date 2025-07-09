@@ -43,6 +43,7 @@ def create_app() -> FastAPI:
         provider,
         verify,
         process_logs,
+        api_key,
     )
 
     routers = [
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
         provider,
         verify,
         process_logs,
+        api_key,
     ]
 
     for router in routers:
