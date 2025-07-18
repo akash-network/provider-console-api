@@ -86,7 +86,7 @@ async def get_control_and_worker_input(
 
 
 # Route handlers
-@router.post("/verify/control-machine")
+@router.post("/verify/control-machine", include_in_schema=False)
 async def verify_control_machine(
     data: dict, wallet_address: str = Depends(verify_token)
 ):
@@ -120,7 +120,7 @@ async def verify_control_machine(
         raise handle_unexpected_error(e, "VER_001")
 
 
-@router.post("/verify/control-and-worker")
+@router.post("/verify/control-and-worker", include_in_schema=False)
 async def verify_control_and_worker(data: dict):
     control_input, worker_input = await get_control_and_worker_input(data)
     log.info(
@@ -157,7 +157,7 @@ async def verify_control_and_worker(data: dict):
         raise handle_unexpected_error(e, "VER_003")
 
 
-@router.post("/verify/open-ports")
+@router.post("/verify/open-ports", include_in_schema=False)
 async def verify_open_ports(data: dict, wallet_address: str = Depends(verify_token)):
     try:
         public_ip = data["public_ip"]
@@ -170,7 +170,7 @@ async def verify_open_ports(data: dict, wallet_address: str = Depends(verify_tok
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ae.payload)
 
 
-@router.post("/verify/dns")
+@router.post("/verify/dns", include_in_schema=False)
 async def verify_dns(data: dict, wallet_address: str = Depends(verify_token)):
     try:
         domains = data["domains"]

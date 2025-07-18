@@ -72,7 +72,7 @@ def process_provider_build_input(data: Dict) -> ProviderBuildInput:
         )
 
 
-@router.post("/build-provider")
+@router.post("/build-provider", include_in_schema=False)
 async def build_provider(
     background_tasks: BackgroundTasks,
     data: Dict,
@@ -150,7 +150,7 @@ async def build_provider(
         )
 
 
-@router.get("/build-provider-status/{action_id}")
+@router.get("/build-provider-status/{action_id}", include_in_schema=False)
 async def get_build_provider_status(action_id: str):
     try:
         akash_cluster_service = AkashClusterService()
@@ -163,7 +163,7 @@ async def get_build_provider_status(action_id: str):
         )
 
 
-@router.post("/update-provider-attributes")
+@router.post("/update-provider-attributes", include_in_schema=False)
 async def update_provider_attributes(
     data: Dict,
     wallet_address: str = Depends(verify_token),
@@ -195,7 +195,7 @@ async def update_provider_attributes(
         )
 
 
-@router.post("/get-provider-pricing")
+@router.post("/get-provider-pricing", include_in_schema=False)
 async def get_provider_pricing(
     data: Dict,
     wallet_address: str = Depends(verify_token),
@@ -233,7 +233,7 @@ async def get_provider_pricing(
         )
 
 
-@router.post("/update-provider-pricing")
+@router.post("/update-provider-pricing", include_in_schema=False)
 async def update_provider_pricing(
     data: Dict,
     wallet_address: str = Depends(verify_token),
@@ -274,7 +274,7 @@ async def update_provider_pricing(
         )
 
 
-@router.post("/update-provider-domain")
+@router.post("/update-provider-domain", include_in_schema=False)
 async def update_provider_domain(
     data: Dict,
     wallet_address: str = Depends(verify_token),
@@ -315,7 +315,7 @@ async def update_provider_domain(
         )
 
 
-@router.post("/update-provider-email")
+@router.post("/update-provider-email", include_in_schema=False)
 async def update_email(
     data: Dict,
     wallet_address: str = Depends(verify_token),
@@ -358,7 +358,7 @@ async def update_email(
         )
 
 
-@router.post("/upgrade-status")
+@router.post("/upgrade-status", include_in_schema=False)
 async def check_upgrade(
     machine_input: Dict, wallet_address: str = Depends(verify_token)
 ) -> Dict:
@@ -390,7 +390,7 @@ async def check_upgrade(
         )
 
 
-@router.post("/network/upgrade")
+@router.post("/network/upgrade", include_in_schema=False)
 async def upgrade_network(
     background_tasks: BackgroundTasks,
     machine_input: Dict, wallet_address: str = Depends(verify_token)
@@ -431,7 +431,7 @@ async def upgrade_network(
             },
         )
 
-@router.post("/provider/upgrade")
+@router.post("/provider/upgrade", include_in_schema=False)
 async def upgrade_provider(
     background_tasks: BackgroundTasks,
     machine_input: Dict, wallet_address: str = Depends(verify_token)
@@ -473,7 +473,7 @@ async def upgrade_provider(
         )
 
 
-@router.post("/restart-provider")
+@router.post("/restart-provider", include_in_schema=False)
 async def restart_provider(
     data: Dict,
     wallet_address: str = Depends(verify_token),
@@ -508,7 +508,7 @@ async def restart_provider(
         )
 
 
-@router.post("/uninstall-provider")
+@router.post("/uninstall-provider", include_in_schema=False)
 async def uninstall_provider(
     background_tasks: BackgroundTasks,
     data: Dict,

@@ -61,6 +61,19 @@ def get_api_key_by_id(api_key_id: str) -> Optional[Dict]:
         handle_db_error(f"retrieving API key with ID {api_key_id}", e)
 
 
+def get_api_key_by_key_value(api_key_value: str) -> Optional[Dict]:
+    """Get an API key by its key value."""
+    try:
+        api_key = api_keys_collection.find_one({"api_key": api_key_value})
+        if api_key:
+            api_key["id"] = str(api_key["_id"])
+            del api_key["_id"]
+        return api_key
+    except Exception as e:
+        handle_db_error(f"retrieving API key by key value", e)
+
+
+
 def get_api_key_by_wallet_address(wallet_address: str) -> Optional[Dict]:
     """Get an API key by wallet address."""
     try:
@@ -71,6 +84,17 @@ def get_api_key_by_wallet_address(wallet_address: str) -> Optional[Dict]:
         return api_key
     except Exception as e:
         handle_db_error(f"retrieving API key for wallet address {wallet_address}", e)
+
+
+def update_last_used(api_key_id: str) -> None:
+    """Update the last_used_at timestamp for an API key."""
+    try:
+        api_keys_collection.update_one(
+            {"_id": ObjectId(api_key_id)},
+            {"$set": {"last_used_at": datetime.utcnow()}}
+        )
+    except Exception as e:
+        log.error(f"Error updating last_used_at for API key {api_key_id}: {str(e)}")
 
 
 def delete_api_key(api_key_id: str) -> bool:

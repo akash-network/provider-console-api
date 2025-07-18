@@ -1,6 +1,7 @@
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import status
+from typing import Optional
 
 from application.exception.application_error import ApplicationError
 from application.model.api_key import ApiKeyResponse
@@ -9,6 +10,8 @@ from application.data.api_key_repository import (
     get_api_key_by_id,
     get_api_key_by_wallet_address,
     delete_api_key,
+    get_api_key_by_key_value,
+    update_last_used,
     check_api_key_exists,
 )
 from application.utils.logger import log
@@ -43,14 +46,18 @@ class ApiKeyService:
             # Generate API key
             api_key_value = self.generate_api_key()
             
+            # Calculate expiration date (1 year from now)
+            created_at = datetime.now()
+            expires_at = created_at + timedelta(days=365)
+            
             # Create the document
             api_key_doc = {
                 "wallet_address": wallet_address,
                 "api_key": api_key_value,
                 "is_active": True,
-                "created_at": datetime.now(),
+                "created_at": created_at,
                 "last_used_at": None,
-                "expires_at": None,
+                "expires_at": expires_at,
             }
 
             # Save to database
@@ -155,3 +162,29 @@ class ApiKeyService:
                     "message": "Failed to delete API key",
                 },
             )
+
+    
+    def validate_api_key(self, api_key_value: str) -> Optional[str]:
+        """Validate an API key and return the wallet address if valid."""
+        try:
+            api_key_doc = get_api_key_by_key_value(api_key_value)
+            if not api_key_doc:
+                return None
+
+            # Check if API key is active
+            if not api_key_doc.get("is_active", False):
+                return None
+
+            # Check if API key has expired
+            expires_at = api_key_doc.get("expires_at")
+            if expires_at and datetime.utcnow() > expires_at:
+                return None
+
+            # Update last used timestamp
+            update_last_used(api_key_doc["id"])
+
+            return api_key_doc["wallet_address"]
+
+        except Exception as e:
+            log.error(f"Error validating API key: {str(e)}")
+            return None 

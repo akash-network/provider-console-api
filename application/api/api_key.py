@@ -10,7 +10,7 @@ router = APIRouter()
 api_key_service = ApiKeyService()
 
 
-@router.post("/api-key", response_model=ApiKeyResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/api-key", response_model=ApiKeyResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def create_api_key(
     wallet_address: str = Depends(verify_token),
 ):
@@ -37,7 +37,7 @@ async def create_api_key(
         )
 
 
-@router.delete("/api-key/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/api-key/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT, include_in_schema=False)
 async def delete_api_key(
     api_key_id: str,
     wallet_address: str = Depends(verify_token),
@@ -77,7 +77,7 @@ async def delete_api_key(
         )
 
 
-@router.get("/api-key", response_model=ApiKeyResponse)
+@router.get("/api-key", response_model=ApiKeyResponse, include_in_schema=False)
 async def get_api_key_by_wallet(
     wallet_address: str = Depends(verify_token),
 ):
