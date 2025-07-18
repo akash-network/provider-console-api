@@ -43,7 +43,7 @@ class ProviderEarningsService:
             to_date_str = to_date.strftime("%Y-%m-%d")
             
             # Construct URL and parameters
-            internal_url = f"{self.console_api_base_url}/internal/provider-earnings/{wallet_address}"
+            internal_url = f"{self.console_api_base_url}/v1/provider-earnings/{wallet_address}"
             params = {
                 "from": from_date_str,
                 "to": to_date_str
