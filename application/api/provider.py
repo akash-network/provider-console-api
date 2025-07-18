@@ -8,7 +8,7 @@ from application.utils.logger import log
 router = APIRouter()
 
 
-@router.get("/provider/status/v2/online")
+@router.get("/provider/status/v2/online", include_in_schema=False)
 async def provider_online_status_v2_get(
     chainid: str, provider_uri: str, wallet_address: str = Depends(verify_token)
 ):

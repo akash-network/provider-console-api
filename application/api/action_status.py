@@ -7,7 +7,7 @@ from application.data.wallet_addresses import get_all_action_details
 router = APIRouter()
 
 
-@router.get("/action/status/{action_id}")
+@router.get("/action/status/{action_id}", include_in_schema=False)
 async def get_action_status(
     action_id: str, wallet_address: str = Depends(verify_token)
 ):
@@ -21,7 +21,7 @@ async def get_action_status(
         ) from e
 
 
-@router.get("/actions")
+@router.get("/actions", include_in_schema=False)
 async def get_action_ids(wallet_address: str = Depends(verify_token)):
     try:
         return {"actions": get_all_action_details(wallet_address)}

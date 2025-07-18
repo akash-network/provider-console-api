@@ -10,7 +10,9 @@ from .exception.application_error import ApplicationError
 
 dictConfig(LogConfig().model_dump())
 
-app = FastAPI()
+app = FastAPI(
+    docs_url="/swagger"
+)
 
 
 @app.exception_handler(ApplicationError)
@@ -43,6 +45,8 @@ def create_app() -> FastAPI:
         provider,
         verify,
         process_logs,
+        api_key,
+        provider_earnings,
     )
 
     routers = [
@@ -53,6 +57,8 @@ def create_app() -> FastAPI:
         provider,
         verify,
         process_logs,
+        api_key,
+        provider_earnings,
     ]
 
     for router in routers:

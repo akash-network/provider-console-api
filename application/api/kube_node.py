@@ -70,7 +70,7 @@ def process_add_node_input(data: Dict) -> AddNodeInput:
         )
 
 
-@router.post("/kube/nodes")
+@router.post("/kube/nodes", include_in_schema=False)
 async def list_nodes(data: Dict, wallet_address: str = Depends(verify_token)):
     try:
         log.info(f"Listing nodes for wallet address: {wallet_address}")
@@ -95,7 +95,7 @@ async def list_nodes(data: Dict, wallet_address: str = Depends(verify_token)):
         ) from e
 
 
-@router.post("/kube/add-nodes")
+@router.post("/kube/add-nodes", include_in_schema=False)
 async def add_nodes(background_tasks: BackgroundTasks, data: Dict, wallet_address: str = Depends(verify_token)):
     try:
         log.info(f"Adding nodes for wallet address: {wallet_address}")
@@ -116,7 +116,7 @@ async def add_nodes(background_tasks: BackgroundTasks, data: Dict, wallet_addres
         ) from e
 
 
-@router.post("/kube/remove-node")
+@router.post("/kube/remove-node", include_in_schema=False)
 async def remove_node(background_tasks: BackgroundTasks, data: Dict, wallet_address: str = Depends(verify_token)):
     try:
         log.info(f"Removing node for wallet address: {wallet_address}")

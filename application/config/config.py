@@ -10,6 +10,9 @@ class Config:
         "PROVIDER_CONSOLE_FRONTEND_URL", "http://localhost:3000"
     )
 
+    # Internal API Config
+    CONSOLE_API_BASE_URL = environ.get("CONSOLE_API_BASE_URL", "http://localhost:3080")
+
     # MongoDB Config
     MONGO_DB_CONNECTION_STRING = environ.get("MONGO_DB_CONNECTION_STRING")
     MONGO_DB_NAME = environ.get("MONGO_DB_NAME")

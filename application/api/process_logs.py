@@ -7,7 +7,7 @@ router = APIRouter()
 log_service = LogService()
 
 
-@router.get("/tasks/logs/{task_id}")
+@router.get("/tasks/logs/{task_id}", include_in_schema=False)
 async def stream_task_logs(task_id: str, wallet_address: str = Depends(verify_token)):
     """
     Stream logs for a specific task from Redis with heartbeat
@@ -37,7 +37,7 @@ async def stream_task_logs(task_id: str, wallet_address: str = Depends(verify_to
     )
 
 
-@router.get("/tasks/logs/archive/{task_id}")
+@router.get("/tasks/logs/archive/{task_id}", include_in_schema=False)
 def get_active_task_logs(task_id: str, wallet_address: str = Depends(verify_token)):
     """
     Get archived logs for a specific task from MongoDB
