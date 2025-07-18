@@ -1,6 +1,6 @@
 import requests
 from datetime import date
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from application.config.config import Config
 from application.utils.logger import log
@@ -69,7 +69,7 @@ class ProviderEarningsService:
                     "error": "Internal Server Error",
                     "message": "Failed to fetch provider earnings",
                 },
-            )
+            ) from e
 
     def _validate_date_range(self, from_date: date, to_date: date) -> None:
         """Validate the date range."""

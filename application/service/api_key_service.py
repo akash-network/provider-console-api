@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import status
 from typing import Optional
 
@@ -47,7 +47,7 @@ class ApiKeyService:
             api_key_value = self.generate_api_key()
             
             # Calculate expiration date (1 year from now)
-            created_at = datetime.now()
+            created_at = datetime.now(timezone.utc)
             expires_at = created_at + timedelta(days=365)
             
             # Create the document
@@ -85,7 +85,7 @@ class ApiKeyService:
                     "error": "Internal Server Error",
                     "message": "Failed to create API key",
                 },
-            )
+            ) from None
 
     def get_api_key(self, api_key_id: str) -> ApiKeyResponse:
         """Get an API key by ID."""

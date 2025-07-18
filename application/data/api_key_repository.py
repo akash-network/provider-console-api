@@ -1,4 +1,5 @@
 from typing import Dict, Optional
+from datetime import datetime, timezone
 from bson import ObjectId
 from application.config.mongodb import provider_console_db
 from application.exception.application_error import ApplicationError
@@ -91,7 +92,7 @@ def update_last_used(api_key_id: str) -> None:
     try:
         api_keys_collection.update_one(
             {"_id": ObjectId(api_key_id)},
-            {"$set": {"last_used_at": datetime.utcnow()}}
+            {"$set": {"last_used_at": datetime.now(timezone.utc)}}
         )
     except Exception as e:
         log.error(f"Error updating last_used_at for API key {api_key_id}: {str(e)}")
