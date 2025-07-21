@@ -4,7 +4,7 @@ from application import create_app
 app = create_app()
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
     return {"message": "Welcome to the Provider Console backend API."}
 
