@@ -1,4 +1,4 @@
-import requests
+import httpx
 import urllib3
 
 from application.config.config import Config
@@ -17,9 +17,10 @@ async def check_provider_online_status_v2(chain_id: str, provider_uri: str):
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     try:
-        response = requests.get(f"{provider_uri}/status", verify=False, timeout=20)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
+        async with httpx.AsyncClient(verify=False, timeout=20.0) as client:
+            response = await client.get(f"{provider_uri}/status")
+            response.raise_for_status()
+            return response.json()
+    except (httpx.RequestError, httpx.TimeoutException) as e:
         log.error(f"Error checking provider online status v2: {e}")
         return False
