@@ -21,6 +21,6 @@ async def check_provider_online_status_v2(chain_id: str, provider_uri: str):
             response = await client.get(f"{provider_uri}/status")
             response.raise_for_status()
             return response.json()
-    except (httpx.RequestError, httpx.TimeoutException) as e:
+    except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError) as e:
         log.error(f"Error checking provider online status v2: {e}")
         return False
