@@ -587,18 +587,18 @@ EOF
         ubuntu_codename = f"ubuntu{ubuntu_version.replace('.','')}"
 
         # Install NVIDIA drivers
-        nvidia_565_commands = [
+        nvidia_570_commands = [
             f"wget https://developer.download.nvidia.com/compute/cuda/repos/{ubuntu_codename}/x86_64/3bf863cc.pub",
             "apt-key add 3bf863cc.pub",
             f"echo 'deb https://developer.download.nvidia.com/compute/cuda/repos/{ubuntu_codename}/x86_64/ /' | tee /etc/apt/sources.list.d/nvidia-official-repo.list",
             "apt update",
             "apt-get install build-essential dkms linux-headers-$(uname -r) -y",
-            "apt-get install nvidia-driver-565 -y",
+            "apt-get install nvidia-driver-570 -y",
             "modprobe nvidia",
             "nvidia-smi"
         ]
 
-        nvidia_570_commands = [
+        nvidia_5090_commands = [
             "apt install linux-headers-$(uname -r) -y",
             f"wget https://developer.download.nvidia.com/compute/cuda/repos/{ubuntu_codename}/x86_64/cuda-keyring_1.1-1_all.deb",
             "dpkg -i cuda-keyring_1.1-1_all.deb",
@@ -608,9 +608,9 @@ EOF
         ]
 
         if gpu_name and gpu_name == "rtx5090":
-            commands = nvidia_570_commands
+            commands = nvidia_5090_commands
         else:
-            commands = nvidia_565_commands
+            commands = nvidia_570_commands
 
         for cmd in commands:
             run_ssh_command(ssh_client, cmd, task_id=task_id)
