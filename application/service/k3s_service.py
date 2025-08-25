@@ -594,8 +594,6 @@ EOF
             "apt update",
             "apt-get install build-essential dkms linux-headers-$(uname -r) -y",
             "apt-get install nvidia-driver-570 -y",
-            "modprobe nvidia",
-            "nvidia-smi"
         ]
 
         nvidia_5090_commands = [
