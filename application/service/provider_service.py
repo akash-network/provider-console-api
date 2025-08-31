@@ -236,7 +236,7 @@ EOF
         run_ssh_command(ssh_client, ingress_config, task_id=task_id)
         commands = [
             "helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx",
-            f"helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version {Config.INGRESS_NGINX_VERSION} --namespace ingress-nginx --create-namespace -f ~/ingress-nginx-custom.yaml",
+            f"helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version {Config.INGRESS_NGINX_VERSION} --namespace ingress-nginx --create-namespace -f ~/ingress-nginx-custom.yaml --set controller.admissionWebhooks.enabled=false",
             "kubectl label ns ingress-nginx app.kubernetes.io/name=ingress-nginx app.kubernetes.io/instance=ingress-nginx",
             "kubectl label ingressclass akash-ingress-class akash.network=true",
         ]
