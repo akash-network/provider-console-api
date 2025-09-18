@@ -263,7 +263,7 @@ class UpgradeService:
 
             # Backup existing values
             log.info("Backing up helm values...")
-            backup_cmd = "cd /root/provider && for i in $(helm list -n akash-services -q | grep -vw akash-node); do helm -n akash-services get values $i > ${i}.pre-v0.6.10.values; done"
+            backup_cmd = "cd /root/provider && for i in $(helm list -n akash-services -q | grep -vw akash-node); do helm -n akash-services get values $i > ${i}.pre-v0.8.2.values; done"
             run_ssh_command(ssh_client, backup_cmd, True, task_id=task_id)
 
             # Upgrade hostname operator
