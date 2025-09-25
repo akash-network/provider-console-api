@@ -29,7 +29,7 @@ class UpgradeService:
             if release_type == "node"
             else self.PROVIDER_HELM_CHECK_CMD
         )
-        component_name = "akash-node" if release_type == "node" else "provider"
+        component_name = "akash-node" if release_type == "node" else "akash-provider"
         display_name = "Akash Node" if release_type == "node" else "Akash Provider"
 
         stdout, _ = run_ssh_command(ssh_client, cmd, True)
@@ -68,21 +68,18 @@ class UpgradeService:
         """
 
         def get_versions():
-            try:
-                node_app_version, node_chart_version = self._get_helm_release_versions(
-                    ssh_client, "node"
-                )
-                provider_app_version, provider_chart_version = (
-                    self._get_helm_release_versions(ssh_client, "provider")
-                )
-                return (
-                    node_app_version,
-                    node_chart_version,
-                    provider_app_version,
-                    provider_chart_version,
-                )
-            finally:
-                ssh_client.close()
+            node_app_version, node_chart_version = self._get_helm_release_versions(
+                ssh_client, "node"
+            )
+            provider_app_version, provider_chart_version = (
+                self._get_helm_release_versions(ssh_client, "provider")
+            )
+            return (
+                node_app_version,
+                node_chart_version,
+                provider_app_version,
+                provider_chart_version,
+            )
 
         try:
             # Get both node and provider versions in a separate thread
@@ -158,6 +155,9 @@ class UpgradeService:
                 error_code="PROVIDER_003",
                 payload={"error": "Upgrade Check Error", "message": str(e)},
             )
+
+        finally:
+            ssh_client.close()
 
     async def upgrade_network(self, ssh_client, task_id: str) -> Dict:
         try:

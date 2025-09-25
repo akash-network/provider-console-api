@@ -137,7 +137,9 @@ async def get_provider_earnings(
     except HTTPException:
         raise
     except ApplicationError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.to_dict())
+        detail = e.to_dict()
+        detail["error_code"] = e.error_code
+        raise HTTPException(status_code=e.status_code, detail=detail) from e
     except Exception as e:
         log.error(
             f"Unexpected error in get_provider_earnings endpoint: {e}", exc_info=True
@@ -148,4 +150,4 @@ async def get_provider_earnings(
                 "error": "Internal Server Error",
                 "message": "An unexpected error occurred while fetching provider earnings",
             },
-        )
+        ) from e

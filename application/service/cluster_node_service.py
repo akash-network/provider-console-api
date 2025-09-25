@@ -4,6 +4,7 @@ import asyncio
 from typing import Dict, Tuple, List, Optional
 import socket
 import requests
+import ipaddress
 from fastapi import status
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
@@ -389,14 +390,14 @@ lspci -nn | grep -Ei 'vga|3d' | awk '
                     ips = []
                     for res in results:
                         ip = res[4][0]
-                        # Skip private IP ranges
-                        if not (
-                            ip.startswith("10.")
-                            or ip.startswith("172.16.")
-                            or ip.startswith("192.168.")
-                            or ip.startswith("127.")
-                        ):
-                            ips.append(ip)
+                        try:
+                            ip_obj = ipaddress.ip_address(ip)
+                            # Skip private, loopback, and link-local addresses
+                            if not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local):
+                                ips.append(ip)
+                        except ValueError:
+                            # Skip invalid IP addresses
+                            continue
 
                     # Remove duplicates while preserving order
                     public_ips = list(dict.fromkeys(ips))
