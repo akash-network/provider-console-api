@@ -1,16 +1,7 @@
 import httpx
 import urllib3
 
-from application.config.config import Config
 from application.utils.logger import log
-
-
-def get_node_url(chain_id):
-    return (
-        Config.AKASH_NODE_STATUS_CHECK
-        if chain_id == Config.CHAIN_ID
-        else Config.AKASH_NODE_STATUS_CHECK_TESTNET
-    )
 
 
 async def check_provider_online_status_v2(chain_id: str, provider_uri: str):

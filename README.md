@@ -48,16 +48,12 @@ PUBLIC_KEY - Base64 encoded public key for authentication
 
 # Akash Network Config
 AKASH_NODE_STATUS_CHECK - URL to check the status of the main Akash node
-AKASH_NODE_STATUS_CHECK_TESTNET - URL to check the status of the testnet Akash node
-AKASH_VERSION - Version of the Akash software for mainnet
-AKASH_VERSION_TESTNET - Version of the Akash software for testnet
+AKASH_VERSION - Version of the Akash software
 CHAIN_ID - Chain ID of the main Akash network
-CHAIN_ID_TESTNET - Chain ID of the Akash testnet
 KEYRING_BACKEND - Backend for managing cryptographic keys in Akash
 
 # Deployment Config
-PROVIDER_SERVICES_VERSION - Version identifier for provider services on mainnet
-PROVIDER_SERVICES_VERSION_TESTNET - Version identifier for provider services on testnet
+PROVIDER_SERVICES_VERSION - Version identifier for provider services
 PROVIDER_PRICE_SCRIPT_URL - URL for the provider pricing script
 
 #Miscellaneous
