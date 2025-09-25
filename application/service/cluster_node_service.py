@@ -73,7 +73,10 @@ class ClusterNodeService:
 
         try:
             system_info = json.loads(stdout)
-            if not any(version in system_info["os"].lower() for version in ["ubuntu 22.04", "ubuntu 24.04"]):
+            if not any(
+                version in system_info["os"].lower()
+                for version in ["ubuntu 22.04", "ubuntu 24.04"]
+            ):
                 raise self._create_application_error(
                     "OS_001", "Only Ubuntu 22.04 and Ubuntu 24.04 are supported"
                 )
@@ -351,7 +354,6 @@ lspci -nn | grep -Ei 'vga|3d' | awk '
             log.error(f"Error checking port {port} on {ip}: {str(e)}")
             return False
 
-
     def check_ports(self, ip: str, ports: List[int]):
         try:
             open_ports = []
@@ -370,59 +372,57 @@ lspci -nn | grep -Ei 'vga|3d' | awk '
         except Exception as e:
             log.error(f"Error checking ports on {ip}: {str(e)}")
             raise self._create_application_error(
-                "PORT_001",
-                f"Failed to check ports on {ip}: {str(e)}"
+                "PORT_001", f"Failed to check ports on {ip}: {str(e)}"
             )
 
     def resolve_domain(self, domains: List[str]) -> Dict[str, List[Dict[str, str]]]:
         try:
             successful_resolutions = []
             failed_resolutions = []
-            
+
             for domain in domains:
                 try:
                     # Get all IP addresses for the domain
                     results = socket.getaddrinfo(domain, None, socket.AF_INET)
-                    
+
                     # Extract unique IPs and filter for public IPs only
                     ips = []
                     for res in results:
                         ip = res[4][0]
                         # Skip private IP ranges
                         if not (
-                            ip.startswith('10.') or
-                            ip.startswith('172.16.') or
-                            ip.startswith('192.168.') or
-                            ip.startswith('127.')
+                            ip.startswith("10.")
+                            or ip.startswith("172.16.")
+                            or ip.startswith("192.168.")
+                            or ip.startswith("127.")
                         ):
                             ips.append(ip)
-                    
+
                     # Remove duplicates while preserving order
                     public_ips = list(dict.fromkeys(ips))
-                    
+
                     if not public_ips:
                         failed_resolutions.append(domain)
                         continue
-                    
+
                     # Add the domain and its first public IP to the result
                     successful_resolutions.append({domain: public_ips[0]})
-                    
+
                 except socket.gaierror:
                     failed_resolutions.append(domain)
-            
+
             if failed_resolutions:
                 raise self._create_application_error(
                     "DNS_002",
                     f"Failed to resolve the following domains: {', '.join(failed_resolutions)}. "
-                    f"Successfully resolved domains: {successful_resolutions if successful_resolutions else 'none'}"
+                    f"Successfully resolved domains: {successful_resolutions if successful_resolutions else 'none'}",
                 )
-            
+
             return {"public_ips": successful_resolutions}
-            
+
         except Exception as e:
             if isinstance(e, ApplicationError):
                 raise e
             raise self._create_application_error(
-                "DNS_003",
-                f"Unexpected error resolving domains: {str(e)}"
+                "DNS_003", f"Unexpected error resolving domains: {str(e)}"
             )

@@ -343,7 +343,7 @@ async def update_email(
             "message": "Provider email update process started successfully",
             "action_id": action_id,
         }
-    
+
     except Exception as e:
         log.error(f"Error updating provider email: {str(e)}")
         raise HTTPException(
@@ -393,7 +393,8 @@ async def check_upgrade(
 @router.post("/network/upgrade", include_in_schema=False)
 async def upgrade_network(
     background_tasks: BackgroundTasks,
-    machine_input: Dict, wallet_address: str = Depends(verify_token)
+    machine_input: Dict,
+    wallet_address: str = Depends(verify_token),
 ) -> Dict:
     try:
         control_machine = machine_input["control_machine"]
@@ -411,7 +412,7 @@ async def upgrade_network(
             akash_cluster_service.upgrade_network,
             action_id,
             control_machine_input,
-            wallet_address
+            wallet_address,
         )
 
         return {
@@ -431,10 +432,12 @@ async def upgrade_network(
             },
         )
 
+
 @router.post("/provider/upgrade", include_in_schema=False)
 async def upgrade_provider(
     background_tasks: BackgroundTasks,
-    machine_input: Dict, wallet_address: str = Depends(verify_token)
+    machine_input: Dict,
+    wallet_address: str = Depends(verify_token),
 ) -> Dict:
     try:
         control_machine = machine_input["control_machine"]
@@ -444,7 +447,7 @@ async def upgrade_provider(
                 control_machine["keyfile"]
             )
 
-        control_machine_input = ControlMachineInput(**control_machine)  
+        control_machine_input = ControlMachineInput(**control_machine)
 
         action_id = str(uuid4())
         akash_cluster_service = AkashClusterService()
@@ -452,7 +455,7 @@ async def upgrade_provider(
             akash_cluster_service.upgrade_provider,
             action_id,
             control_machine_input,
-            wallet_address
+            wallet_address,
         )
 
         return {
@@ -532,7 +535,7 @@ async def uninstall_provider(
             akash_cluster_service.uninstall_provider,
             action_id,
             control_machine_input,
-            wallet_address
+            wallet_address,
         )
 
         return {

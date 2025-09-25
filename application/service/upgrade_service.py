@@ -15,17 +15,22 @@ class UpgradeService:
         self.AKASH_NODE_HELM_CHECK_CMD = "helm list -n akash-services -o json | jq '.[] | select(.name == \"akash-node\")'"
         self.PROVIDER_HELM_CHECK_CMD = "helm list -n akash-services -o json | jq '.[] | select(.name == \"akash-provider\")'"
 
-
-    def _get_helm_release_versions(self, ssh_client, release_type: str) -> Tuple[str, str]:
+    def _get_helm_release_versions(
+        self, ssh_client, release_type: str
+    ) -> Tuple[str, str]:
         """Get helm release versions for akash node or provider
-        
+
         Args:
             ssh_client: SSH client to run commands
             release_type: Either 'node' or 'provider' to specify which release to check
         """
-        cmd = self.AKASH_NODE_HELM_CHECK_CMD if release_type == 'node' else self.PROVIDER_HELM_CHECK_CMD
-        component_name = "akash-node" if release_type == 'node' else "provider"
-        display_name = "Akash Node" if release_type == 'node' else "Akash Provider"
+        cmd = (
+            self.AKASH_NODE_HELM_CHECK_CMD
+            if release_type == "node"
+            else self.PROVIDER_HELM_CHECK_CMD
+        )
+        component_name = "akash-node" if release_type == "node" else "provider"
+        display_name = "Akash Node" if release_type == "node" else "Akash Provider"
 
         stdout, _ = run_ssh_command(ssh_client, cmd, True)
         helm_data = json.loads(stdout)
@@ -33,7 +38,7 @@ class UpgradeService:
         if not helm_data:
             raise ApplicationError(
                 status_code=status.HTTP_404_NOT_FOUND,
-                error_code="PROVIDER_002", 
+                error_code="PROVIDER_002",
                 payload={
                     "error": f"{display_name} Not Found",
                     "message": f"Could not find {component_name} helm release",
@@ -43,7 +48,6 @@ class UpgradeService:
         chart_version = helm_data.get("chart", "").replace(f"{component_name}-", "")
         app_version = helm_data.get("app_version")
         return app_version, chart_version
-    
 
     def _compare_versions(
         self, current_version: str, desired_version: str
@@ -58,40 +62,65 @@ class UpgradeService:
 
     async def check_upgrade_status(self, ssh_client) -> Dict:
         """Check if upgrade is needed for both network and provider
-        
+
         Args:
             ssh_client: SSH client to run commands
         """
+
         def get_versions():
             try:
-                node_app_version, node_chart_version = self._get_helm_release_versions(ssh_client, 'node')
-                provider_app_version, provider_chart_version = self._get_helm_release_versions(ssh_client, 'provider')
-                return node_app_version, node_chart_version, provider_app_version, provider_chart_version
+                node_app_version, node_chart_version = self._get_helm_release_versions(
+                    ssh_client, "node"
+                )
+                provider_app_version, provider_chart_version = (
+                    self._get_helm_release_versions(ssh_client, "provider")
+                )
+                return (
+                    node_app_version,
+                    node_chart_version,
+                    provider_app_version,
+                    provider_chart_version,
+                )
             finally:
                 ssh_client.close()
 
         try:
             # Get both node and provider versions in a separate thread
-            node_app_version, node_chart_version, provider_app_version, provider_chart_version = await asyncio.to_thread(get_versions)
+            (
+                node_app_version,
+                node_chart_version,
+                provider_app_version,
+                provider_chart_version,
+            ) = await asyncio.to_thread(get_versions)
 
             # Compare node versions
-            node_app_needs_upgrade, node_app_current, node_app_desired = self._compare_versions(
-                node_app_version, Config.AKASH_VERSION
+            node_app_needs_upgrade, node_app_current, node_app_desired = (
+                self._compare_versions(node_app_version, Config.AKASH_VERSION)
             )
-            node_chart_needs_upgrade, node_chart_current, node_chart_desired = self._compare_versions(
-                node_chart_version, Config.AKASH_NODE_HELM_CHART_VERSION
+            node_chart_needs_upgrade, node_chart_current, node_chart_desired = (
+                self._compare_versions(
+                    node_chart_version, Config.AKASH_NODE_HELM_CHART_VERSION
+                )
             )
-            
+
             # Compare provider versions
-            provider_app_needs_upgrade, provider_app_current, provider_app_desired = self._compare_versions(
-                provider_app_version, Config.PROVIDER_SERVICES_VERSION
+            provider_app_needs_upgrade, provider_app_current, provider_app_desired = (
+                self._compare_versions(
+                    provider_app_version, Config.PROVIDER_SERVICES_VERSION
+                )
             )
-            provider_chart_needs_upgrade, provider_chart_current, provider_chart_desired = self._compare_versions(
+            (
+                provider_chart_needs_upgrade,
+                provider_chart_current,
+                provider_chart_desired,
+            ) = self._compare_versions(
                 provider_chart_version, Config.PROVIDER_SERVICES_HELM_CHART_VERSION
             )
 
             node_needs_upgrade = node_app_needs_upgrade or node_chart_needs_upgrade
-            provider_needs_upgrade = provider_app_needs_upgrade or provider_chart_needs_upgrade
+            provider_needs_upgrade = (
+                provider_app_needs_upgrade or provider_chart_needs_upgrade
+            )
 
             return {
                 "node": {
@@ -99,27 +128,27 @@ class UpgradeService:
                     "app_version": {
                         "current": node_app_current,
                         "desired": node_app_desired,
-                        "needs_upgrade": node_app_needs_upgrade
+                        "needs_upgrade": node_app_needs_upgrade,
                     },
                     "chart_version": {
                         "current": node_chart_current,
                         "desired": node_chart_desired,
-                        "needs_upgrade": node_chart_needs_upgrade
-                    }
+                        "needs_upgrade": node_chart_needs_upgrade,
+                    },
                 },
                 "provider": {
                     "needs_upgrade": provider_needs_upgrade,
                     "app_version": {
                         "current": provider_app_current,
                         "desired": provider_app_desired,
-                        "needs_upgrade": provider_app_needs_upgrade
+                        "needs_upgrade": provider_app_needs_upgrade,
                     },
                     "chart_version": {
                         "current": provider_chart_current,
                         "desired": provider_chart_desired,
-                        "needs_upgrade": provider_chart_needs_upgrade
-                    }
-                }
+                        "needs_upgrade": provider_chart_needs_upgrade,
+                    },
+                },
             }
 
         except Exception as e:
@@ -129,7 +158,6 @@ class UpgradeService:
                 error_code="PROVIDER_003",
                 payload={"error": "Upgrade Check Error", "message": str(e)},
             )
-
 
     async def upgrade_network(self, ssh_client, task_id: str) -> Dict:
         try:
@@ -169,8 +197,8 @@ class UpgradeService:
                         error_code="PROVIDER_006",
                         payload={
                             "error": "Helm Chart Not Found",
-                            "message": "Could not find akash-node chart in helm repositories"
-                        }
+                            "message": "Could not find akash-node chart in helm repositories",
+                        },
                     )
 
                 # Upgrade akash-node deployment
@@ -178,8 +206,10 @@ class UpgradeService:
                 if app_needs_upgrade:
                     upgrade_command = f"helm upgrade --install akash-node akash/akash-node -n akash-services --set image.tag={app_version}"
                 else:
-                    upgrade_command = f"kubectl delete pod -n akash-services -l app=akash-node"
-                
+                    upgrade_command = (
+                        f"kubectl delete pod -n akash-services -l app=akash-node"
+                    )
+
                 stdout, stderr = run_ssh_command(
                     ssh_client,
                     upgrade_command,
@@ -194,15 +224,15 @@ class UpgradeService:
                     True,
                     task_id=task_id,
                 )
-                
+
                 if "akash-node" not in verify_stdout:
                     raise ApplicationError(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         error_code="PROVIDER_007",
                         payload={
                             "error": "Helm Upgrade Failed",
-                            "message": "Could not verify akash-node helm release after upgrade"
-                        }
+                            "message": "Could not verify akash-node helm release after upgrade",
+                        },
                     )
 
                 return {
@@ -210,7 +240,7 @@ class UpgradeService:
                     "message": "Network upgrade completed successfully",
                 }
         except ApplicationError as e:
-            log.error(f"Error upgrading network: {e.payload["message"]}")
+            log.error(f"Error upgrading network: {e.payload['message']}")
             raise e
         except Exception as e:
             log.error(f"Error upgrading network: {e}")
@@ -222,8 +252,6 @@ class UpgradeService:
         finally:
             ssh_client.close()
 
-
-
     async def upgrade_provider(self, ssh_client, task_id: str) -> Dict:
         try:
             # Get the system version in a separate thread
@@ -233,10 +261,10 @@ class UpgradeService:
             needs_upgrade = provider_upgrade_status["needs_upgrade"]
             app_version = provider_upgrade_status["app_version"]["desired"]
             chart_version = provider_upgrade_status["chart_version"]["desired"]
-            
+
             if not needs_upgrade:
                 return {"status": "success", "message": "Provider is up to date"}
-            
+
             # Update Helm repositories
             log.info("Updating Helm repositories...")
             stdout, stderr = run_ssh_command(
@@ -258,7 +286,10 @@ class UpgradeService:
                 raise ApplicationError(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     error_code="PROVIDER_009",
-                    payload={"error": "Helm Chart Not Found", "message": "Could not find akash-provider chart in helm repositories"}
+                    payload={
+                        "error": "Helm Chart Not Found",
+                        "message": "Could not find akash-provider chart in helm repositories",
+                    },
                 )
 
             # Backup existing values
@@ -289,7 +320,7 @@ class UpgradeService:
             price_script_cmds = [
                 "mv ~/provider/price_script_generic.sh ~/provider/price_script_generic.sh.old",
                 f"wget -O ~/provider/price_script_generic.sh {Config.PROVIDER_PRICE_SCRIPT_URL}",
-                "chmod +x ~/provider/price_script_generic.sh"
+                "chmod +x ~/provider/price_script_generic.sh",
             ]
             for cmd in price_script_cmds:
                 run_ssh_command(ssh_client, cmd, True, task_id=task_id)
@@ -298,7 +329,7 @@ class UpgradeService:
             log.info("Upgrading provider chart...")
             provider_upgrade_cmd = (
                 "helm upgrade akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml "
-                "--set bidpricescript=\"$(cat ~/provider/price_script_generic.sh | openssl base64 -A)\""
+                '--set bidpricescript="$(cat ~/provider/price_script_generic.sh | openssl base64 -A)"'
             )
             run_ssh_command(ssh_client, provider_upgrade_cmd, True, task_id=task_id)
 
@@ -313,8 +344,8 @@ class UpgradeService:
                     error_code="PROVIDER_008",
                     payload={
                         "error": "Provider Upgrade Verification Failed",
-                        "message": f"Could not verify provider version {app_version} after upgrade"
-                    }
+                        "message": f"Could not verify provider version {app_version} after upgrade",
+                    },
                 )
 
             return {
@@ -334,4 +365,3 @@ class UpgradeService:
             )
         finally:
             ssh_client.close()
-                        

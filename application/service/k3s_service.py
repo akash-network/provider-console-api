@@ -86,9 +86,7 @@ class K3sService:
             )
             internal_ip = internal_ip.strip()
 
-            install_exec += (
-                f" --node-ip={internal_ip} --advertise-address={internal_ip} --kube-scheduler-arg=config=/var/lib/rancher/k3s/server/etc/scheduler-config.yaml"
-            )
+            install_exec += f" --node-ip={internal_ip} --advertise-address={internal_ip} --kube-scheduler-arg=config=/var/lib/rancher/k3s/server/etc/scheduler-config.yaml"
             log.info(f"Setting node IP to {internal_ip}")
 
             if external_ip:
@@ -136,7 +134,9 @@ profiles:
           weight: 1
 EOF
 """
-            run_ssh_command(ssh_client, "mkdir -p /var/lib/rancher/k3s/server/etc", task_id=task_id)
+            run_ssh_command(
+                ssh_client, "mkdir -p /var/lib/rancher/k3s/server/etc", task_id=task_id
+            )
             run_ssh_command(ssh_client, scheduler_config, task_id=task_id)
 
             log.info(f"Executing K3s initialization command: {install_command}")
@@ -409,7 +409,11 @@ profiles:
           weight: 1
 EOF
 """
-                run_ssh_command(worker_ssh_client, "mkdir -p /var/lib/rancher/k3s/server/etc", task_id=task_id)
+                run_ssh_command(
+                    worker_ssh_client,
+                    "mkdir -p /var/lib/rancher/k3s/server/etc",
+                    task_id=task_id,
+                )
                 run_ssh_command(worker_ssh_client, scheduler_config, task_id=task_id)
 
                 # Execute the installation command
@@ -477,7 +481,6 @@ EOF
         except Exception as e:
             self._handle_unexpected_error(e, "K3s installation on worker")
 
-
     def _remove_node(
         self,
         ssh_client,
@@ -489,27 +492,27 @@ EOF
         log.info(f"Removing {node_type} node {node_name} from the cluster")
         try:
             # Connect to the worker node through the control node
-            worker_ssh_client = self._get_worker_ssh_client(ssh_client, node_internal_ip)
+            worker_ssh_client = self._get_worker_ssh_client(
+                ssh_client, node_internal_ip
+            )
             try:
                 # Remove the worker node from the cluster
                 drain_command = f"kubectl drain {node_name} --ignore-daemonsets --delete-emptydir-data --force"
                 run_ssh_command(ssh_client, drain_command, task_id=task_id)
-                
+
                 # Remove the worker node from the cluster
                 delete_command = f"kubectl delete node {node_name}"
                 run_ssh_command(ssh_client, delete_command, task_id=task_id)
 
                 if node_type == "control_plane_node":
-                    uninstall_command = f"/usr/local/bin/k3s-uninstall.sh" 
+                    uninstall_command = f"/usr/local/bin/k3s-uninstall.sh"
                 else:
-                    uninstall_command = f"/usr/local/bin/k3s-agent-uninstall.sh" 
-                    
+                    uninstall_command = f"/usr/local/bin/k3s-agent-uninstall.sh"
+
                 run_ssh_command(worker_ssh_client, uninstall_command, task_id=task_id)
 
                 log.info(f"Worker node {node_name} uninstalled from the cluster")
-                return {
-                    "message": "Worker node removed from the cluster successfully"
-                }
+                return {"message": "Worker node removed from the cluster successfully"}
 
             finally:
                 worker_ssh_client.close()
@@ -537,7 +540,9 @@ EOF
                 else ssh_client
             )
             self._update_system(ssh_connection, control_input, task_id)
-            self._install_nvidia_drivers(ssh_connection, control_input, gpu_name, task_id)
+            self._install_nvidia_drivers(
+                ssh_connection, control_input, gpu_name, task_id
+            )
             self._install_nvidia_container_runtime(
                 ssh_connection, control_input, task_id
             )
@@ -570,14 +575,16 @@ EOF
     def _get_ubuntu_version(self, ssh_client, task_id: str) -> str:
         """Get Ubuntu version from the system"""
         stdout, _ = run_ssh_command(
-            ssh_client,
-            "lsb_release -rs | grep -oE '[0-9]+\.[0-9]+'",
-            task_id=task_id
+            ssh_client, "lsb_release -rs | grep -oE '[0-9]+\.[0-9]+'", task_id=task_id
         )
         return stdout.strip()
 
     def _install_nvidia_drivers(
-        self, ssh_client, control_input: ControlMachineInput, gpu_name: str, task_id: str
+        self,
+        ssh_client,
+        control_input: ControlMachineInput,
+        gpu_name: str,
+        task_id: str,
     ):
         log.info(f"Installing NVIDIA drivers on {control_input.hostname}")
         time.sleep(5)
@@ -602,7 +609,7 @@ EOF
             "dpkg -i cuda-keyring_1.1-1_all.deb",
             "apt update",
             "apt install nvidia-open -y",
-            "nvidia-smi"
+            "nvidia-smi",
         ]
 
         if gpu_name and gpu_name == "rtx5090":
@@ -709,7 +716,11 @@ EOF
             )
 
     def _reboot_node(
-        self, ssh_client, control_input: ControlMachineInput, node_type: str, task_id: str
+        self,
+        ssh_client,
+        control_input: ControlMachineInput,
+        node_type: str,
+        task_id: str,
     ):
         log.info(f"Initiating reboot for node {control_input.hostname}")
 
@@ -729,7 +740,7 @@ EOF
             # Wait for node to come back online (max 5 minutes)
             max_attempts = 30
             retry_interval = 10
-            
+
             for attempt in range(max_attempts):
                 try:
                     # Get new SSH connection
@@ -758,16 +769,18 @@ EOF
                         )
 
         except Exception as e:
-            log.error(f"Error during reboot process for node {control_input.hostname}: {str(e)}")
+            log.error(
+                f"Error during reboot process for node {control_input.hostname}: {str(e)}"
+            )
             raise ApplicationError(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 error_code="K3S_014",
                 payload={
-                    "error": "Reboot Failed", 
-                    "message": f"Error during reboot process for node {control_input.hostname}: {str(e)}"
-                }
+                    "error": "Reboot Failed",
+                    "message": f"Error during reboot process for node {control_input.hostname}: {str(e)}",
+                },
             )
-        
+
     def list_nodes(self, ssh_client):
         try:
             log.info("Listing nodes")
@@ -805,9 +818,11 @@ EOF
             raise ApplicationError(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 error_code="K3S_015",
-                payload={"error": "Node Listing Failed", "message": f"Error listing nodes: {str(e)}"},
+                payload={
+                    "error": "Node Listing Failed",
+                    "message": f"Error listing nodes: {str(e)}",
+                },
             )
-
 
     def _get_worker_ssh_client(self, control_ssh_client, node_internal_ip: str):
         """Create SSH client for worker node using key from control node."""

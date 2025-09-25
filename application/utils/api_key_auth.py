@@ -41,4 +41,4 @@ def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
                 "error": "Internal Server Error",
                 "message": "An unexpected error occurred during authentication",
             },
-        ) 
+        )

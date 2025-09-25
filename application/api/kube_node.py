@@ -18,13 +18,16 @@ from typing import Dict
 
 router = APIRouter()
 
+
 def decode_keyfile(keyfile_data: str) -> str:
     return keyfile_data.split(",")[1]
+
 
 # Helper functions
 def decode_keyfile_to_uploadfile(keyfile_data: str) -> UploadFile:
     decoded_content = b64decode(decode_keyfile(keyfile_data))
     return UploadFile(filename="keyfile", file=io.BytesIO(decoded_content))
+
 
 def process_add_node_input(data: Dict) -> AddNodeInput:
     try:
@@ -96,14 +99,25 @@ async def list_nodes(data: Dict, wallet_address: str = Depends(verify_token)):
 
 
 @router.post("/kube/add-nodes", include_in_schema=False)
-async def add_nodes(background_tasks: BackgroundTasks, data: Dict, wallet_address: str = Depends(verify_token)):
+async def add_nodes(
+    background_tasks: BackgroundTasks,
+    data: Dict,
+    wallet_address: str = Depends(verify_token),
+):
     try:
         log.info(f"Adding nodes for wallet address: {wallet_address}")
         input_data = process_add_node_input(data)
 
         action_id = str(uuid4())
         akash_cluster_service = AkashClusterService()
-        background_tasks.add_task(akash_cluster_service.add_nodes, action_id, input_data.control_machine, input_data.nodes, input_data.existing_nodes, wallet_address)
+        background_tasks.add_task(
+            akash_cluster_service.add_nodes,
+            action_id,
+            input_data.control_machine,
+            input_data.nodes,
+            input_data.existing_nodes,
+            wallet_address,
+        )
         return {
             "message": "Nodes adding process started successfully.",
             "action_id": action_id,
@@ -117,7 +131,11 @@ async def add_nodes(background_tasks: BackgroundTasks, data: Dict, wallet_addres
 
 
 @router.post("/kube/remove-node", include_in_schema=False)
-async def remove_node(background_tasks: BackgroundTasks, data: Dict, wallet_address: str = Depends(verify_token)):
+async def remove_node(
+    background_tasks: BackgroundTasks,
+    data: Dict,
+    wallet_address: str = Depends(verify_token),
+):
     try:
         log.info(f"Removing node for wallet address: {wallet_address}")
         control_machine = data["control_machine"]
@@ -133,10 +151,18 @@ async def remove_node(background_tasks: BackgroundTasks, data: Dict, wallet_addr
             )
 
         control_machine_input = ControlMachineInput(**control_machine)
-        
+
         action_id = str(uuid4())
         akash_cluster_service = AkashClusterService()
-        background_tasks.add_task(akash_cluster_service.remove_nodes, action_id, control_machine_input, node_internal_ip, node_name, node_type, wallet_address)
+        background_tasks.add_task(
+            akash_cluster_service.remove_nodes,
+            action_id,
+            control_machine_input,
+            node_internal_ip,
+            node_name,
+            node_type,
+            wallet_address,
+        )
         return {
             "message": "Node removal process started successfully.",
             "action_id": action_id,

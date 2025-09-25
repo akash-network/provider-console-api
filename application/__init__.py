@@ -10,9 +10,7 @@ from .exception.application_error import ApplicationError
 
 dictConfig(LogConfig().model_dump())
 
-app = FastAPI(
-    docs_url="/swagger"
-)
+app = FastAPI(docs_url="/swagger")
 
 
 @app.exception_handler(ApplicationError)

@@ -17,7 +17,6 @@ class Config:
     MONGO_DB_CONNECTION_STRING = environ.get("MONGO_DB_CONNECTION_STRING")
     MONGO_DB_NAME = environ.get("MONGO_DB_NAME")
 
-
     # Akash Server Config
     AKASH_NODE_STATUS_CHECK = environ.get("AKASH_NODE_STATUS_CHECK")
     CHAIN_ID = environ.get("CHAIN_ID", "akashnet-2")
@@ -27,10 +26,14 @@ class Config:
     )
     KEYRING_BACKEND = environ.get("KEYRING_BACKEND", "file")
     AKASH_VERSION = environ.get("AKASH_VERSION", "v0.38.1")
-    AKASH_NODE_HELM_CHART_VERSION = environ.get("AKASH_NODE_HELM_CHART_VERSION", "12.0.3")
+    AKASH_NODE_HELM_CHART_VERSION = environ.get(
+        "AKASH_NODE_HELM_CHART_VERSION", "12.0.3"
+    )
     INGRESS_NGINX_VERSION = environ.get("INGRESS_NGINX_VERSION", "4.11.3")
     PROVIDER_SERVICES_VERSION = environ.get("PROVIDER_SERVICES_VERSION", "v0.6.10")
-    PROVIDER_SERVICES_HELM_CHART_VERSION = environ.get("PROVIDER_SERVICES_HELM_CHART_VERSION", "11.6.0")
+    PROVIDER_SERVICES_HELM_CHART_VERSION = environ.get(
+        "PROVIDER_SERVICES_HELM_CHART_VERSION", "11.6.0"
+    )
     PROVIDER_PRICE_SCRIPT_URL = environ.get(
         "PROVIDER_PRICE_SCRIPT_URL",
         "https://raw.githubusercontent.com/akash-network/helm-charts/main/charts/akash-provider/scripts/price_script_generic.sh",
