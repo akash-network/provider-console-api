@@ -207,7 +207,7 @@ class UpgradeService:
                     upgrade_command = f"helm upgrade --install akash-node akash/akash-node -n akash-services --set image.tag={app_version}"
                 else:
                     upgrade_command = (
-                        f"kubectl delete pod -n akash-services -l app=akash-node"
+                        "kubectl delete pod -n akash-services -l app=akash-node"
                     )
 
                 stdout, stderr = run_ssh_command(

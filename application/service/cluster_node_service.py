@@ -392,8 +392,7 @@ lspci -nn | grep -Ei 'vga|3d' | awk '
                         ip = res[4][0]
                         try:
                             ip_obj = ipaddress.ip_address(ip)
-                            # Skip private, loopback, and link-local addresses
-                            if not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local):
+                            if ip_obj.is_global:
                                 ips.append(ip)
                         except ValueError:
                             # Skip invalid IP addresses
