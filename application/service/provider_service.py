@@ -602,6 +602,136 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
                 },
             )
 
+
+    async def get_letsencrypt_jwt_status(self, ssh_client):
+        command = """yq '.letsEncrypt.enabled // "not found"' provider/provider.yaml"""
+        output, _ = run_ssh_command(ssh_client, command)
+        if output.strip() == "not found" or output.strip() == "false":
+            return False
+        else:
+            return True
+
+
+    async def enable_letsencrypt_jwt(self, ssh_client, provider_info, email):
+        """
+        Enable Let's Encrypt JWT by creating configuration and updating provider.yaml
+        
+        Args:
+            ssh_client: SSH client connection
+            provider_info: Dictionary containing provider configuration
+            email: Email address for Let's Encrypt
+        """
+        # Create the Let's Encrypt configuration file
+        config_filename = self._create_letsencrypt_config(ssh_client, provider_info, email)
+        
+        # Update provider.yaml to load the configuration
+        command = f'yq -i \'.letsEncrypt = load("{config_filename}")\' ~/provider/provider.yaml'
+        run_ssh_command(ssh_client, command)
+        
+        await self.restart_provider_service(ssh_client)
+        log.info("Letsencrypt jwt enabled successfully.")
+
+    def _create_letsencrypt_config(self, ssh_client, provider_info, email):
+        """
+        Create Let's Encrypt configuration file based on provider type.
+        
+        Args:
+            ssh_client: SSH client connection
+            provider_info: Dictionary containing provider configuration
+            email: Email address for Let's Encrypt
+        """
+        log.info(f"Creating Let's Encrypt configuration for provider: {provider_info.get('provider')}")
+        
+        provider_type = provider_info.get('provider')
+        
+        if provider_type == 'googleCloud':
+            config_content = self._create_gcloud_letsencrypt_config(provider_info, email)
+            filename = 'gcloud-lets.yaml'
+        elif provider_type == 'cloudflare':
+            config_content = self._create_cloudflare_letsencrypt_config(provider_info, email)
+            filename = 'cloudflare-lets.yaml'
+        else:
+            raise ApplicationError(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                error_code="PROVIDER_008",
+                payload={
+                    "error": "Unsupported Provider",
+                    "message": f"Provider type '{provider_type}' is not supported for Let's Encrypt configuration",
+                },
+            )
+        
+        # Create the configuration file on the remote server
+        create_file_command = f"""
+cat > ~/{filename} << 'EOF'
+{config_content}
+EOF
+"""
+        
+        try:
+            run_ssh_command(ssh_client, create_file_command)
+            log.info(f"Let's Encrypt configuration file '{filename}' created successfully")
+            return filename
+        except Exception as e:
+            log.error(f"Failed to create Let's Encrypt configuration file: {str(e)}")
+            raise ApplicationError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                error_code="PROVIDER_009",
+                payload={
+                    "error": "Configuration File Creation Failed",
+                    "message": f"Failed to create Let's Encrypt configuration file: {str(e)}",
+                },
+            )
+
+    def _create_gcloud_letsencrypt_config(self, provider_info, email):
+        """Create Google Cloud Let's Encrypt configuration."""
+        service_account_json = {
+            "type": "service_account",
+            "project_id": provider_info.get('projectId'),
+            "private_key_id": provider_info.get('privateKeyId'),
+            "private_key": provider_info.get('privateKey'),
+            "client_email": provider_info.get('clientEmail'),
+            "client_id": provider_info.get('clientId'),
+            "auth_uri": provider_info.get('authUri', 'https://accounts.google.com/o/oauth2/auth'),
+            "token_uri": provider_info.get('tokenUri', 'https://oauth2.googleapis.com/token'),
+            "auth_provider_x509_cert_url": provider_info.get('authProviderX509CertUrl', 'https://www.googleapis.com/oauth2/v1/certs'),
+            "client_x509_cert_url": provider_info.get('clientX509CertUrl')
+        }
+        
+        # Convert the service account JSON to a properly formatted string
+        service_account_str = json.dumps(service_account_json, indent=2)
+        
+        # Indent each line of the JSON for proper YAML formatting
+        indented_service_account = '\n'.join('        ' + line for line in service_account_str.split('\n'))
+        
+        return f"""enabled: true
+acme:
+  email: "{email}"
+  caDirUrl: "https://acme-v02.api.letsencrypt.org/directory"
+dns:
+  providers:
+    - "gcloud"
+providers:
+  googleCloud:
+    enabled: true
+    serviceAccount:
+      content: |
+{indented_service_account}"""
+
+    def _create_cloudflare_letsencrypt_config(self, provider_info, email):
+        """Create Cloudflare Let's Encrypt configuration."""
+        return f"""enabled: true
+acme:
+  email: "{email}"
+  caDirUrl: "https://acme-v02.api.letsencrypt.org/directory"
+dns:
+  providers:
+    - "cloudflare"
+providers:
+  cloudflare:
+    enabled: true
+    apiToken: "{provider_info.get('apiToken')}\""""
+
+
     def _handle_unexpected_error(self, e, operation):
         log.error(f"Unexpected error during {operation}: {str(e)}")
         raise ApplicationError(

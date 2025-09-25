@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
         process_logs,
         api_key,
         provider_earnings,
+        letsencrypt_jwt,
     )
 
     routers = [
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
         process_logs,
         api_key,
         provider_earnings,
+        letsencrypt_jwt,
     ]
 
     for router in routers:
