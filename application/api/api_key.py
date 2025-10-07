@@ -10,7 +10,12 @@ router = APIRouter()
 api_key_service = ApiKeyService()
 
 
-@router.post("/api-key", response_model=ApiKeyResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
+@router.post(
+    "/api-key",
+    response_model=ApiKeyResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
 async def create_api_key(
     wallet_address: str = Depends(verify_token),
 ):
@@ -22,10 +27,7 @@ async def create_api_key(
     except HTTPException:
         raise
     except ApplicationError as e:
-        raise HTTPException(
-            status_code=e.status_code,
-            detail=e.to_dict()
-        )
+        raise HTTPException(status_code=e.status_code, detail=e.to_dict())
     except Exception as e:
         log.error(f"Unexpected error in create_api_key: {e}", exc_info=True)
         raise HTTPException(
@@ -37,7 +39,11 @@ async def create_api_key(
         )
 
 
-@router.delete("/api-key/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT, include_in_schema=False)
+@router.delete(
+    "/api-key/{api_key_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    include_in_schema=False,
+)
 async def delete_api_key(
     api_key_id: str,
     wallet_address: str = Depends(verify_token),
@@ -46,7 +52,7 @@ async def delete_api_key(
     try:
         # First get the API key to check ownership
         api_key = api_key_service.get_api_key(api_key_id)
-        
+
         # Ensure the authenticated user can only delete their own API keys
         if api_key.wallet_address != wallet_address:
             raise HTTPException(
@@ -62,10 +68,7 @@ async def delete_api_key(
     except HTTPException:
         raise
     except ApplicationError as e:
-        raise HTTPException(
-            status_code=e.status_code,
-            detail=e.to_dict()
-        )
+        raise HTTPException(status_code=e.status_code, detail=e.to_dict())
     except Exception as e:
         log.error(f"Unexpected error in delete_api_key: {e}", exc_info=True)
         raise HTTPException(
@@ -89,10 +92,7 @@ async def get_api_key_by_wallet(
     except HTTPException:
         raise
     except ApplicationError as e:
-        raise HTTPException(
-            status_code=e.status_code,
-            detail=e.to_dict()
-        )
+        raise HTTPException(status_code=e.status_code, detail=e.to_dict())
     except Exception as e:
         log.error(f"Unexpected error in get_api_key_by_wallet: {e}", exc_info=True)
         raise HTTPException(

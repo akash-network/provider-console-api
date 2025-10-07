@@ -74,7 +74,6 @@ def get_api_key_by_key_value(api_key_value: str) -> Optional[Dict]:
         handle_db_error(f"retrieving API key by key value", e)
 
 
-
 def get_api_key_by_wallet_address(wallet_address: str) -> Optional[Dict]:
     """Get an API key by wallet address."""
     try:
@@ -92,7 +91,7 @@ def update_last_used(api_key_id: str) -> None:
     try:
         api_keys_collection.update_one(
             {"_id": ObjectId(api_key_id)},
-            {"$set": {"last_used_at": datetime.now(timezone.utc)}}
+            {"$set": {"last_used_at": datetime.now(timezone.utc)}},
         )
     except Exception as e:
         log.error(f"Error updating last_used_at for API key {api_key_id}: {str(e)}")
@@ -102,7 +101,7 @@ def delete_api_key(api_key_id: str) -> bool:
     """Delete an API key."""
     try:
         result = api_keys_collection.delete_one({"_id": ObjectId(api_key_id)})
-        
+
         if result.deleted_count == 0:
             raise ApplicationError(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -112,7 +111,7 @@ def delete_api_key(api_key_id: str) -> bool:
                     "message": f"API key with ID {api_key_id} not found",
                 },
             )
-        
+
         log.info(f"Deleted API key with ID: {api_key_id}")
         return True
     except ApplicationError:
@@ -124,6 +123,10 @@ def delete_api_key(api_key_id: str) -> bool:
 def check_api_key_exists(wallet_address: str) -> bool:
     """Check if an API key exists for a wallet address."""
     try:
-        return api_keys_collection.count_documents({"wallet_address": wallet_address}) > 0
+        return (
+            api_keys_collection.count_documents({"wallet_address": wallet_address}) > 0
+        )
     except Exception as e:
-        handle_db_error(f"checking if API key exists for wallet address {wallet_address}", e) 
+        handle_db_error(
+            f"checking if API key exists for wallet address {wallet_address}", e
+        )

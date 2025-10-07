@@ -29,9 +29,7 @@ class AkashClusterService:
         log.info(f"Starting Akash cluster creation for action {action_id}")
 
         try:
-            k3s_tasks = self._create_k3s_tasks(
-                provider_build_input.nodes
-            )
+            k3s_tasks = self._create_k3s_tasks(provider_build_input.nodes)
             provider_tasks = self._create_provider_tasks(
                 provider_build_input, wallet_address
             )
@@ -55,7 +53,7 @@ class AkashClusterService:
         worker_nodes = []
 
         total_nodes = len(nodes)
-        
+
         # Determine number of control nodes based on total nodes
         if total_nodes <= 3:
             control_nodes = [nodes[0]]
@@ -195,7 +193,7 @@ class AkashClusterService:
                         node_type,
                     )
                 )
-                
+
         return k3s_tasks
 
     def _create_provider_tasks(
@@ -423,7 +421,9 @@ class AkashClusterService:
                 ssh_client,
             ),
         ]
-        self.task_manager.create_action(action_id, "Upgrade Provider", provider_upgrade_tasks)
+        self.task_manager.create_action(
+            action_id, "Upgrade Provider", provider_upgrade_tasks
+        )
         store_wallet_action_mapping(wallet_address, action_id)
         await self.task_manager.run_action(action_id)
         log.info(f"Provider upgrade completed for action {action_id}")
@@ -504,12 +504,16 @@ class AkashClusterService:
     def get_action_status(self, action_id: str):
         return self.task_manager.get_action_status(action_id)
 
-    async def add_nodes(self, action_id, control_machine, nodes, existing_nodes, wallet_address):
+    async def add_nodes(
+        self, action_id, control_machine, nodes, existing_nodes, wallet_address
+    ):
         log.info(f"Adding nodes for action {action_id}")
         try:
             ssh_client = get_ssh_client(control_machine)
             try:
-                add_nodes_tasks = self._create_add_nodes_tasks(nodes, existing_nodes, ssh_client)
+                add_nodes_tasks = self._create_add_nodes_tasks(
+                    nodes, existing_nodes, ssh_client
+                )
                 self.task_manager.create_action(action_id, "Add Nodes", add_nodes_tasks)
                 store_wallet_action_mapping(wallet_address, action_id)
                 await self.task_manager.run_action(action_id)
@@ -604,13 +608,25 @@ class AkashClusterService:
 
         return add_nodes_tasks
 
-    async def remove_nodes(self, action_id, control_machine, node_internal_ip, node_name, node_type, wallet_address):
+    async def remove_nodes(
+        self,
+        action_id,
+        control_machine,
+        node_internal_ip,
+        node_name,
+        node_type,
+        wallet_address,
+    ):
         log.info(f"Removing nodes for action {action_id}")
         try:
             ssh_client = get_ssh_client(control_machine)
             try:
-                remove_nodes_tasks = self._create_remove_nodes_tasks(ssh_client, node_internal_ip, node_name, node_type)
-                self.task_manager.create_action(action_id, "Remove Nodes", remove_nodes_tasks)
+                remove_nodes_tasks = self._create_remove_nodes_tasks(
+                    ssh_client, node_internal_ip, node_name, node_type
+                )
+                self.task_manager.create_action(
+                    action_id, "Remove Nodes", remove_nodes_tasks
+                )
                 store_wallet_action_mapping(wallet_address, action_id)
                 await self.task_manager.run_action(action_id)
                 log.info(f"Nodes removed successfully for action {action_id}")
@@ -620,7 +636,9 @@ class AkashClusterService:
             log.error(f"Error during node removal: {str(e)}")
             raise
 
-    def _create_remove_nodes_tasks(self, ssh_client, node_internal_ip, node_name, node_type):
+    def _create_remove_nodes_tasks(
+        self, ssh_client, node_internal_ip, node_name, node_type
+    ):
         remove_nodes_tasks = []
 
         remove_nodes_tasks.append(
@@ -636,7 +654,6 @@ class AkashClusterService:
             )
         )
         return remove_nodes_tasks
-    
 
     async def uninstall_provider(self, action_id, control_machine, wallet_address):
         ssh_client = get_ssh_client(control_machine)
@@ -648,7 +665,9 @@ class AkashClusterService:
             self.provider_service.uninstall_provider_service,
             ssh_client,
         )
-        self.task_manager.create_action(action_id, "Uninstall Provider", [uninstall_provider_task])
+        self.task_manager.create_action(
+            action_id, "Uninstall Provider", [uninstall_provider_task]
+        )
         store_wallet_action_mapping(wallet_address, action_id)
         await self.task_manager.run_action(action_id)
         log.info(f"Provider uninstallation completed for action {action_id}")
