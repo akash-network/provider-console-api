@@ -235,7 +235,7 @@ EOF
         try:
             log.info("Installing Calico CNI...")
             commands = [
-                "curl -O https://raw.githubusercontent.com/projectcalico/calico/refs/tags/v3.28.2/manifests/calico.yaml",
+                "curl -O https://raw.githubusercontent.com/projectcalico/calico/refs/tags/v3.29.3/manifests/calico.yaml",
                 'yq eval-all \'(select(.kind == "DaemonSet" and .metadata.name == "calico-node").spec.template.spec.containers[] | select(.name == "calico-node").env) += {"name": "IP_AUTODETECTION_METHOD", "value": "kubernetes-internal-ip"}\' -i calico.yaml',
                 "kubectl apply -f calico.yaml",
             ]
