@@ -235,7 +235,7 @@ EOF
         try:
             log.info("Installing Calico CNI...")
             commands = [
-                "curl -O https://raw.githubusercontent.com/projectcalico/calico/refs/tags/v3.30.3/manifests/calico.yaml",
+                "curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.30.3/manifests/calico.yaml",
                 'yq eval -i \'(select(.kind=="DaemonSet" and .metadata.name=="calico-node").spec.template.spec.containers[] | select(.name=="calico-node").env[] | select(.name=="CALICO_IPV4POOL_VXLAN").value) = "Always"\' calico.yaml',
                 'yq eval -i \'(select(.kind=="DaemonSet" and .metadata.name=="calico-node").spec.template.spec.containers[] | select(.name=="calico-node").env[] | select(.name=="CALICO_IPV4POOL_IPIP").value) = "Never"\' calico.yaml',
                 'yq eval-all \'(select(.kind == "DaemonSet" and .metadata.name == "calico-node").spec.template.spec.containers[] | select(.name == "calico-node").env) += [{"name":"IP_AUTODETECTION_METHOD","value":"kubernetes-internal-ip"}, {"name":"FELIX_WIREGUARDENABLED","value":"false"}]\' -i calico.yaml',
