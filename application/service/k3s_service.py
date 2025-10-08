@@ -78,7 +78,7 @@ class K3sService:
             external_ip = control_input.hostname
             disable_components = "traefik"
             install_exec = (
-                f"--disable={disable_components} --flannel-backend=none --cluster-init"
+                f"--disable={disable_components} --flannel-backend=none --disable-network-policy --cluster-init"
             )
 
             internal_ip, _ = run_ssh_command(
@@ -235,8 +235,11 @@ EOF
         try:
             log.info("Installing Calico CNI...")
             commands = [
-                "curl -O https://raw.githubusercontent.com/projectcalico/calico/refs/tags/v3.29.3/manifests/calico.yaml",
-                'yq eval-all \'(select(.kind == "DaemonSet" and .metadata.name == "calico-node").spec.template.spec.containers[] | select(.name == "calico-node").env) += {"name": "IP_AUTODETECTION_METHOD", "value": "kubernetes-internal-ip"}\' -i calico.yaml',
+                "curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.30.3/manifests/calico.yaml",
+                'yq eval -i \'(select(.kind=="DaemonSet" and .metadata.name=="calico-node").spec.template.spec.containers[] | select(.name=="calico-node").env[] | select(.name=="CALICO_IPV4POOL_VXLAN").value) = "Always"\' calico.yaml',
+                'yq eval -i \'(select(.kind=="DaemonSet" and .metadata.name=="calico-node").spec.template.spec.containers[] | select(.name=="calico-node").env[] | select(.name=="CALICO_IPV4POOL_IPIP").value) = "Never"\' calico.yaml',
+                'yq eval-all \'(select(.kind == "DaemonSet" and .metadata.name == "calico-node").spec.template.spec.containers[] | select(.name == "calico-node").env) += [{"name":"IP_AUTODETECTION_METHOD","value":"kubernetes-internal-ip"}, {"name":"FELIX_WIREGUARDENABLED","value":"false"}]\' -i calico.yaml',
+                'yq eval -i \'(select(.kind=="DaemonSet" and .metadata.name=="calico-node").spec.template.spec.containers[] | select(.name=="calico-node").readinessProbe.exec.command) = ["/bin/calico-node","-felix-ready"]\' calico.yaml',
                 "kubectl apply -f calico.yaml",
             ]
             time.sleep(5)
@@ -372,7 +375,7 @@ users:
                 internal_ip = internal_ip.strip()
 
                 # Set up the installation command
-                install_exec = f"--disable=traefik --flannel-backend=none --node-ip={internal_ip} --node-name {node_name} --kube-scheduler-arg=config=/var/lib/rancher/k3s/server/etc/scheduler-config.yaml"
+                install_exec = f"--disable=traefik --flannel-backend=none --disable-network-policy --node-ip={internal_ip} --node-name {node_name} --kube-scheduler-arg=config=/var/lib/rancher/k3s/server/etc/scheduler-config.yaml"
 
                 if node_input.hostname:
                     install_exec += f" --tls-san={node_input.hostname}"
