@@ -45,11 +45,11 @@ class ApiKeyService:
 
             # Generate API key
             api_key_value = self.generate_api_key()
-            
+
             # Calculate expiration date (1 year from now)
             created_at = datetime.now(timezone.utc)
             expires_at = created_at + timedelta(days=365)
-            
+
             # Create the document
             api_key_doc = {
                 "wallet_address": wallet_address,
@@ -62,7 +62,7 @@ class ApiKeyService:
 
             # Save to database
             api_key_id = create_api_key(api_key_doc)
-            
+
             # Return the response
             return ApiKeyResponse(
                 id=api_key_id,
@@ -163,7 +163,6 @@ class ApiKeyService:
                 },
             )
 
-    
     def validate_api_key(self, api_key_value: str) -> Optional[str]:
         """Validate an API key and return the wallet address if valid."""
         try:
@@ -187,4 +186,4 @@ class ApiKeyService:
 
         except Exception as e:
             log.error(f"Error validating API key: {str(e)}")
-            return None 
+            return None

@@ -23,7 +23,11 @@ def decode_keyfile_to_uploadfile(keyfile_data: str) -> UploadFile:
     return UploadFile(filename="keyfile", file=io.BytesIO(decoded_content))
 
 
-@router.post("/get-unformatted-drives", dependencies=[Depends(verify_token)], include_in_schema=False)
+@router.post(
+    "/get-unformatted-drives",
+    dependencies=[Depends(verify_token)],
+    include_in_schema=False,
+)
 async def get_unformatted_drives(data: Dict):
     try:
         control_machine = data["control_machine"]

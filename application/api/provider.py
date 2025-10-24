@@ -18,7 +18,9 @@ async def provider_online_status_v2_get(
         )
         return {"online": False if provider_online_status is False else True}
     except Exception as e:
-        log.error(f"Unexpected error in provider_online_status_v2_get: {e}", exc_info=True)
+        log.error(
+            f"Unexpected error in provider_online_status_v2_get: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
