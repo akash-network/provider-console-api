@@ -189,6 +189,11 @@ class WalletService:
                 hide=True,
             )
 
+            lines = exported_key.strip().split('\n')
+            if len(lines) > 2:
+                cleaned_key = '\n'.join(lines[2:])
+                exported_key = cleaned_key
+
             if not exported_key:
                 raise ApplicationError(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
