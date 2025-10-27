@@ -53,8 +53,8 @@ class UpgradeService:
         self, current_version: str, desired_version: str
     ) -> Tuple[bool, str, str]:
         """Compare system and current versions"""
-        current_v = current_version.lstrip("v").lstrip("provider-").lstrip("node-")
-        desired_v = desired_version.lstrip("v").lstrip("provider-").lstrip("node-")
+        current_v = current_version.lstrip("v").removeprefix("provider-").removeprefix("node-")
+        desired_v = desired_version.lstrip("v").removeprefix("provider-").removeprefix("node-")
 
         needs_upgrade = version.parse(current_v) < version.parse(desired_v)
 
