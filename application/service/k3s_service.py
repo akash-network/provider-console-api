@@ -77,9 +77,7 @@ class K3sService:
         try:
             external_ip = control_input.hostname
             disable_components = "traefik"
-            install_exec = (
-                f"--disable={disable_components} --flannel-backend=none --disable-network-policy --cluster-init"
-            )
+            install_exec = f"--disable={disable_components} --flannel-backend=none --disable-network-policy --cluster-init"
 
             internal_ip, _ = run_ssh_command(
                 ssh_client, self.INTERNAL_IP_CMD, task_id=task_id

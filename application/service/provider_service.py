@@ -41,11 +41,19 @@ class ProviderService:
 
     def _setup_helm_repos(self, ssh_client, task_id: str):
         log.info("Setting up Helm repositories...")
+        repo_name = "akash" if Config.CHAIN_ID == "akashnet-2" else "akash-dev"
+        repo_url = ("https://akash-network.github.io/helm-charts" if repo_name == "akash" 
+                   else "https://akash-network.github.io/helm-charts/dev")
+        
         commands = [
-            "helm repo remove akash 2>/dev/null || true",
-            "helm repo add akash https://akash-network.github.io/helm-charts",
-            "helm repo update",
+            f"helm repo remove {repo_name} 2>/dev/null || true",
+            f"helm repo add {repo_name} {repo_url}",
         ]
+        
+        if repo_name == "akash-dev":
+            commands.append("helm search repo akash-dev --devel")
+            
+        commands.append("helm repo update")
         for cmd in commands:
             time.sleep(2)
             run_ssh_command(ssh_client, cmd, task_id=task_id)
@@ -55,14 +63,23 @@ class ProviderService:
         self, ssh_client, chain_id, provider_version, node_version, task_id: str
     ):
         log.info("Installing Akash services...")
+        # Define base helm commands based on chain ID
+        repo_prefix = "akash" if chain_id == "akashnet-2" else "akash-dev"
+        devel_flag = "" if chain_id == "akashnet-2" else " --devel"
+        
+        # Common helm install parameters
+        namespace = "-n akash-services"
+        version_tag = f"--set image.tag={provider_version}"
+        
         commands = [
-            f"helm install akash-hostname-operator akash/akash-hostname-operator -n akash-services --set image.tag={provider_version}",
-            f"helm install inventory-operator akash/akash-inventory-operator -n akash-services --set image.tag={provider_version}",
+            f"helm install akash-hostname-operator {repo_prefix}/akash-hostname-operator {namespace} {version_tag}{devel_flag}",
+            f"helm install inventory-operator {repo_prefix}/akash-inventory-operator {namespace} {version_tag}{devel_flag}",
         ]
-        if chain_id != "sandbox-01":
-            commands.append(
-                f"helm install akash-node akash/akash-node -n akash-services --set image.tag={node_version}"
-            )
+        
+        # Add akash-node installation only for mainnet
+        if chain_id == "akashnet-2":
+            node_version_tag = f"--set image.tag={node_version}"
+            commands.append(f"helm install akash-node akash/akash-node {namespace} {node_version_tag}")
         for cmd in commands:
             time.sleep(2)
             run_ssh_command(ssh_client, cmd, task_id=task_id)
@@ -90,7 +107,7 @@ from: "{account_address}"
 key: "{self._get_base64_encoded_key(ssh_client)}"
 keysecret: "{base64.b64encode(key_password.encode()).decode()}"
 domain: "{domain}"
-node: "http://akash-node-1:26657"
+node: "{f'http://akash-node-1:26657' if chain_id == 'akashnet-2' else 'https://rpc.sandbox-2.aksh.pw:443'}"
 withdrawalperiod: 12h
 chainid: "{chain_id}"
 organization: "{organization}"
@@ -144,7 +161,15 @@ EOF
             )
 
             # Prepare the Helm install command
-            install_cmd = f"helm install akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml --set image.tag={provider_version}"
+            # Determine helm repo and flags based on chain ID
+            helm_repo = "akash" if Config.CHAIN_ID == "akashnet-2" else "akash-dev"
+            devel_flag = "" if Config.CHAIN_ID == "akashnet-2" else "--devel"
+            
+            install_cmd = (
+                f"helm install akash-provider {helm_repo}/provider "
+                f"-n akash-services -f ~/provider/provider.yaml "
+                f"--set image.tag={provider_version} {devel_flag}".strip()
+            )
 
             if pricing_script_b64:
                 install_cmd += f" --set bidpricescript='{pricing_script_b64}'"
@@ -582,7 +607,17 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
             provider_version = Config.PROVIDER_SERVICES_VERSION.replace("v", "")
 
             # Upgrade helm chart with the pricing script
-            command = f'helm upgrade --install akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript="{pricing_script_b64}" --set image.tag={provider_version}'
+            # Determine helm repo and flags based on chain ID
+            helm_repo = "akash" if Config.CHAIN_ID == "akashnet-2" else "akash-dev"
+            devel_flag = "" if Config.CHAIN_ID == "akashnet-2" else "--devel"
+            
+            # Build helm upgrade command with consistent parameters
+            command = (
+                f'helm upgrade --install akash-provider {helm_repo}/provider '
+                f'-n akash-services -f ~/provider/provider.yaml '
+                f'--set bidpricescript="{pricing_script_b64}" '
+                f'--set image.tag={provider_version} {devel_flag}'
+            ).strip()
             run_ssh_command(ssh_client, command)
 
             time.sleep(10)

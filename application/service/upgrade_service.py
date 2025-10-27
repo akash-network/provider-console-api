@@ -68,9 +68,21 @@ class UpgradeService:
         """
 
         def get_versions():
-            node_app_version, node_chart_version = self._get_helm_release_versions(
-                ssh_client, "node"
-            )
+            # For mainnet (akashnet-2), get versions from helm release
+            # For other networks, use configured versions since node is not deployed
+            is_mainnet = Config.CHAIN_ID == "akashnet-2"
+
+            # Get node versions
+            if is_mainnet:
+                node_app_version, node_chart_version = self._get_helm_release_versions(
+                    ssh_client, "node"
+                )
+            else:
+                # For non-mainnet, use configured versions since node is not deployed
+                node_app_version = Config.AKASH_VERSION
+                node_chart_version = Config.AKASH_NODE_HELM_CHART_VERSION
+
+            # Get provider versions
             provider_app_version, provider_chart_version = (
                 self._get_helm_release_versions(ssh_client, "provider")
             )
@@ -175,17 +187,19 @@ class UpgradeService:
                 # Delete the pod to trigger upgrade
                 # Update Helm repositories
                 log.info("Updating Helm repositories...")
+                helm_repo_cmd = "helm repo update akash" if Config.CHAIN_ID == "akashnet-2" else "helm repo update akash-dev"
                 stdout, stderr = run_ssh_command(
                     ssh_client,
-                    "helm repo update akash",
+                    helm_repo_cmd,
                     True,
                     task_id=task_id,
                 )
                 # Update Helm repositories
                 log.info("Verifying akash-node chart availability...")
+                helm_search_cmd = "helm search repo akash-node" if Config.CHAIN_ID == "akashnet-2" else "helm search repo akash-dev --devel"
                 stdout, stderr = run_ssh_command(
                     ssh_client,
-                    "helm search repo akash-node",
+                    helm_search_cmd,
                     True,
                     task_id=task_id,
                 )
@@ -204,7 +218,10 @@ class UpgradeService:
                 # Upgrade akash-node deployment
                 log.info(f"Upgrading akash-node to version {app_version}...")
                 if app_needs_upgrade:
-                    upgrade_command = f"helm upgrade --install akash-node akash/akash-node -n akash-services --set image.tag={app_version}"
+                    if Config.CHAIN_ID == "akashnet-2":
+                        upgrade_command = f"helm upgrade --install akash-node akash/akash-node -n akash-services --set image.tag={app_version}"
+                    else:
+                        upgrade_command = f"helm upgrade --install akash-node akash-dev/akash-node -n akash-services --set image.tag={app_version} --devel"
                 else:
                     upgrade_command = (
                         "kubectl delete pod -n akash-services -l app=akash-node"
@@ -267,17 +284,19 @@ class UpgradeService:
 
             # Update Helm repositories
             log.info("Updating Helm repositories...")
+            helm_repo_cmd = "helm repo update akash" if Config.CHAIN_ID == "akashnet-2" else "helm repo update akash-dev"
             stdout, stderr = run_ssh_command(
                 ssh_client,
-                "helm repo update akash",
+                helm_repo_cmd,
                 True,
                 task_id=task_id,
             )
 
             log.info(f"Upgrading provider to version {app_version}...")
+            helm_search_cmd = "helm search repo provider" if Config.CHAIN_ID == "akashnet-2" else "helm search repo provider --devel"
             stdout, stderr = run_ssh_command(
                 ssh_client,
-                "helm search repo provider",
+                helm_search_cmd,
                 True,
                 task_id=task_id,
             )
@@ -294,26 +313,18 @@ class UpgradeService:
 
             # Backup existing values
             log.info("Backing up helm values...")
-            backup_cmd = "cd /root/provider && for i in $(helm list -n akash-services -q | grep -vw akash-node); do helm -n akash-services get values $i > ${i}.pre-v0.8.2.values; done"
+            backup_cmd = "cd /root/provider && for i in $(helm list -n akash-services -q | grep -vw akash-node); do helm -n akash-services get values $i > ${i}.old.values; done"
             run_ssh_command(ssh_client, backup_cmd, True, task_id=task_id)
 
             # Upgrade hostname operator
             log.info("Upgrading hostname operator...")
-            run_ssh_command(
-                ssh_client,
-                f"helm -n akash-services upgrade akash-hostname-operator akash/akash-hostname-operator --set image.tag={app_version}",
-                True,
-                task_id=task_id,
-            )
+            akash_hostname_operator_cmd = f"helm -n akash-services upgrade akash-hostname-operator akash/akash-hostname-operator --set image.tag={app_version}" if Config.CHAIN_ID == "akashnet-2" else f"helm -n akash-services upgrade akash-hostname-operator akash-dev/akash-hostname-operator --set image.tag={app_version} --devel"
+            run_ssh_command(ssh_client, akash_hostname_operator_cmd, True, task_id=task_id)
 
             # Upgrade inventory operator
             log.info("Upgrading inventory operator...")
-            run_ssh_command(
-                ssh_client,
-                f"helm -n akash-services upgrade inventory-operator akash/akash-inventory-operator --set image.tag={app_version}",
-                True,
-                task_id=task_id,
-            )
+            akash_inventory_operator_cmd = f"helm -n akash-services upgrade inventory-operator akash/akash-inventory-operator --set image.tag={app_version}" if Config.CHAIN_ID == "akashnet-2" else f"helm -n akash-services upgrade inventory-operator akash-dev/akash-inventory-operator --set image.tag={app_version} --devel"
+            run_ssh_command(ssh_client, akash_inventory_operator_cmd, True, task_id=task_id)
 
             # Update price script
             log.info("Updating price script...")
@@ -327,10 +338,14 @@ class UpgradeService:
 
             # Upgrade provider chart
             log.info("Upgrading provider chart...")
-            provider_upgrade_cmd = (
-                "helm upgrade akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml "
-                '--set bidpricescript="$(cat ~/provider/price_script_generic.sh | openssl base64 -A)"'
-            )
+            if Config.CHAIN_ID == "akashnet-2":
+                provider_upgrade_cmd = (
+                    f"helm upgrade akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript=\"$(cat ~/provider/price_script_generic.sh | openssl base64 -A)\" --set image.tag={app_version}"
+                )
+            else:
+                provider_upgrade_cmd = (
+                    f"helm upgrade akash-provider akash-dev/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript=\"$(cat ~/provider/price_script_generic.sh | openssl base64 -A)\" --set image.tag={app_version} --devel"
+                )
             run_ssh_command(ssh_client, provider_upgrade_cmd, True, task_id=task_id)
 
             # Verify pod versions

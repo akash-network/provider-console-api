@@ -188,6 +188,15 @@ class WalletService:
                 watchers=[passphrase_prompt, export_passphrase_prompt],
                 hide=True,
             )
+            
+            lines = exported_key.strip().splitlines()
+            try:
+                begin = next(i for i, l in enumerate(lines) if l.startswith("-----BEGIN "))
+                end = next(i for i, l in reversed(list(enumerate(lines))) if l.startswith("-----END "))
+                exported_key = "\n".join(lines[begin : end + 1]) + "\n"
+            except StopIteration:
+                # Fallback: preserve original content with a single trailing newline
+                exported_key = exported_key.strip() + "\n"
 
             if not exported_key:
                 raise ApplicationError(
@@ -202,6 +211,7 @@ class WalletService:
             run_ssh_command(self.ssh_client, "rm -f ~/key.pem")
             store_command = f"cat > ~/key.pem << EOF\n{exported_key}\nEOF"
             run_ssh_command(self.ssh_client, store_command)
+            run_ssh_command(self.ssh_client, "chmod 600 ~/key.pem")
             log.info("Key exported and stored successfully in ~/key.pem")
 
         except Exception as e:
