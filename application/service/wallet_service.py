@@ -94,16 +94,16 @@ class WalletService:
             log.info("Removed existing keyring folder")
 
             bip39_mnemonic = Responder(
-                pattern=f"> Enter your bip39 mnemonic", response=f"{mnemonic}\n"
+                pattern=r"> Enter your bip39 mnemonic", response=f"{mnemonic}\n"
             )
             key_phrase_passphrase = Responder(
-                pattern=f"Enter keyring passphrase (attempt 1/3):", response=f"{key_id}\n"
+                pattern=r"Enter keyring passphrase \(attempt \d+/\d+\):", response=f"{key_id}\n"
             )
             re_key_phrase_passphrase = Responder(
-                pattern=f"Re-enter keyring passphrase:", response=f"{key_id}\n"
+                pattern=r"Re-enter keyring passphrase:", response=f"{key_id}\n"
             )
             override = Responder(
-                pattern=f"override the existing name .*:", response=f"y\n"
+                pattern=r"override the existing name.*:", response=f"y\n"
             )
 
             command = f"~/bin/provider-services keys add provider --recover --keyring-backend {Config.KEYRING_BACKEND}"
@@ -136,7 +136,7 @@ class WalletService:
     def _verify_wallt_import(self, wallet: Wallet, wallet_address: str) -> None:
         try:
             key_phrase_passphrase = Responder(
-                pattern=f"Enter keyring passphrase:", response=f"{wallet.key_id}\n"
+                pattern=r"Enter keyring passphrase \(attempt \d+/\d+\):", response=f"{wallet.key_id}\n"
             )
             result, _ = run_ssh_command(
                 self.ssh_client,
@@ -172,11 +172,10 @@ class WalletService:
         try:
 
             export_passphrase_prompt = Responder(
-                pattern=f"Enter passphrase to encrypt the exported key:",
-                response=f"{key_id}\n",
+                pattern=r"Enter passphrase to encrypt the exported key:", response=f"{key_id}\n"
             )
             passphrase_prompt = Responder(
-                pattern=f"Enter keyring passphrase:", response=f"{key_id}\n"
+                pattern=r"Enter keyring passphrase \(attempt \d+/\d+\):", response=f"{key_id}\n"
             )
 
             export_command = f"~/bin/provider-services keys export provider --keyring-backend {Config.KEYRING_BACKEND}"
