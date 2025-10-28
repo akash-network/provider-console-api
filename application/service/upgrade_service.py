@@ -3,6 +3,7 @@ import asyncio
 import json
 from typing import Dict, Tuple
 from fastapi import status
+import time
 
 from application.config.config import Config
 from application.exception.application_error import ApplicationError
@@ -325,12 +326,14 @@ class UpgradeService:
 
             # Upgrade hostname operator
             log.info("Upgrading hostname operator...")
-            akash_hostname_operator_cmd = "helm -n akash-services upgrade akash-hostname-operator akash/akash-hostname-operator" if Config.CHAIN_ID == "akashnet-2" else "helm -n akash-services upgrade akash-hostname-operator akash-dev/akash-hostname-operator --devel"
+            hostname_operator_version = Config.PROVIDER_HOSTNAME_OPERATOR_VERSION.lstrip("v")
+            akash_hostname_operator_cmd = f"helm -n akash-services upgrade akash-hostname-operator akash/akash-hostname-operator --set image.tag={hostname_operator_version}" if Config.CHAIN_ID == "akashnet-2" else f"helm -n akash-services upgrade akash-hostname-operator akash-dev/akash-hostname-operator --set image.tag={hostname_operator_version} --devel"
             run_ssh_command(ssh_client, akash_hostname_operator_cmd, True, task_id=task_id)
 
             # Upgrade inventory operator
             log.info("Upgrading inventory operator...")
-            akash_inventory_operator_cmd = "helm -n akash-services upgrade inventory-operator akash/akash-inventory-operator" if Config.CHAIN_ID == "akashnet-2" else "helm -n akash-services upgrade inventory-operator akash-dev/akash-inventory-operator --devel"
+            inventory_operator_version = Config.PROVIDER_INVENTORY_OPERATOR_VERSION.lstrip("v")
+            akash_inventory_operator_cmd = f"helm -n akash-services upgrade inventory-operator akash/akash-inventory-operator --set image.tag={inventory_operator_version}" if Config.CHAIN_ID == "akashnet-2" else f"helm -n akash-services upgrade inventory-operator akash-dev/akash-inventory-operator --set image.tag={inventory_operator_version} --devel"
             run_ssh_command(ssh_client, akash_inventory_operator_cmd, True, task_id=task_id)
 
             # Update price script
@@ -358,7 +361,10 @@ class UpgradeService:
             # Verify pod versions
             log.info("Verifying pod versions...")
             verify_cmd = "kubectl -n akash-services get pods -o custom-columns='NAME:.metadata.name,IMAGE:.spec.containers[*].image' | grep -v akash-node"
+            log.info("Waiting for 20 seconds to allow pods to be upgraded...")
+            time.sleep(20) # Wait for the pods to be upgraded
             stdout, _ = run_ssh_command(ssh_client, verify_cmd, True, task_id=task_id)
+
 
             if app_version not in stdout:
                 raise ApplicationError(
