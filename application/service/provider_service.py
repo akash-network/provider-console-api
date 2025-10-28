@@ -343,7 +343,7 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
         redis_client = get_redis_client()
         try:
             # First check if pod is running
-            pod_timeout = 600  # 10 minutes
+            pod_timeout = 1800  # 30 minutes
             sync_timeout = 6000  # 100 minutes
             check_interval = 10  # Check every 10 seconds
             start_time = time.time()
