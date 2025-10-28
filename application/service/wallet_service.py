@@ -97,7 +97,7 @@ class WalletService:
                 pattern=f"> Enter your bip39 mnemonic", response=f"{mnemonic}\n"
             )
             key_phrase_passphrase = Responder(
-                pattern=f"Enter keyring passphrase:", response=f"{key_id}\n"
+                pattern=f"Enter keyring passphrase (attempt 1/3):", response=f"{key_id}\n"
             )
             re_key_phrase_passphrase = Responder(
                 pattern=f"Re-enter keyring passphrase:", response=f"{key_id}\n"
