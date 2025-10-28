@@ -218,14 +218,12 @@ class UpgradeService:
                 # Upgrade akash-node deployment
                 log.info(f"Upgrading akash-node to version {app_version}...")
                 if app_needs_upgrade:
-                    # Uninstall the existing akash-node release
-                    if app_needs_upgrade:
-                        run_ssh_command(
-                            ssh_client,
-                            "helm -n akash-services uninstall akash-node",
-                            True,
-                            task_id=task_id,
-                        )
+                    run_ssh_command(
+                        ssh_client,
+                        "helm -n akash-services uninstall akash-node",
+                        True,
+                        task_id=task_id,
+                    )
                     if Config.CHAIN_ID == "akashnet-2":
                         # Install a fresh akash-node release with desired version
                         upgrade_command = f"helm -n akash-services install akash-node akash/akash-node --set image.tag={app_version}"
@@ -327,12 +325,12 @@ class UpgradeService:
 
             # Upgrade hostname operator
             log.info("Upgrading hostname operator...")
-            akash_hostname_operator_cmd = f"helm -n akash-services upgrade akash-hostname-operator akash/akash-hostname-operator" if Config.CHAIN_ID == "akashnet-2" else f"helm -n akash-services upgrade akash-hostname-operator akash-dev/akash-hostname-operator --devel"
+            akash_hostname_operator_cmd = "helm -n akash-services upgrade akash-hostname-operator akash/akash-hostname-operator" if Config.CHAIN_ID == "akashnet-2" else "helm -n akash-services upgrade akash-hostname-operator akash-dev/akash-hostname-operator --devel"
             run_ssh_command(ssh_client, akash_hostname_operator_cmd, True, task_id=task_id)
 
             # Upgrade inventory operator
             log.info("Upgrading inventory operator...")
-            akash_inventory_operator_cmd = f"helm -n akash-services upgrade inventory-operator akash/akash-inventory-operator" if Config.CHAIN_ID == "akashnet-2" else f"helm -n akash-services upgrade inventory-operator akash-dev/akash-inventory-operator --devel"
+            akash_inventory_operator_cmd = "helm -n akash-services upgrade inventory-operator akash/akash-inventory-operator" if Config.CHAIN_ID == "akashnet-2" else "helm -n akash-services upgrade inventory-operator akash-dev/akash-inventory-operator --devel"
             run_ssh_command(ssh_client, akash_inventory_operator_cmd, True, task_id=task_id)
 
             # Update price script
