@@ -420,13 +420,13 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
                     network_status = response.json()
 
                     # Extract block heights
-                    node_height = int(node_status["SyncInfo"]["latest_block_height"])
+                    node_height = int(node_status["sync_info"]["latest_block_height"])
                     network_height = int(
                         network_status["result"]["sync_info"]["latest_block_height"]
                     )
 
                     # Check if node is catching up
-                    if node_status["SyncInfo"]["catching_up"]:
+                    if node_status["sync_info"]["catching_up"]:
                         message = f"Node is still catching up. Current height: {node_height}, Network height: {network_height}"
                         log.debug(message)
                         redis_client.xadd(f"task:{task_id}", {"stdout": message})
