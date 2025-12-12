@@ -227,13 +227,26 @@ class WalletService:
         try:
             log.info("Installing provider-services...")
 
-            commands = [
-                "apt-get install -y unzip",
-                f"curl https://raw.githubusercontent.com/akash-network/provider/main/install.sh | bash -s -- {Config.PROVIDER_SERVICES_VERSION}",
-            ]
+            # Install unzip dependency
+            run_ssh_command(self.ssh_client, "apt-get install -y unzip")
 
-            for command in commands:
-                run_ssh_command(self.ssh_client, command)
+            # Install provider-services with timeout (15s requires minimum ~10 Mbps connection)
+            install_command = f"timeout 15 bash -c 'curl -sfL https://raw.githubusercontent.com/akash-network/provider/main/install.sh | bash -s -- {Config.PROVIDER_SERVICES_VERSION}'"
+            try:
+                run_ssh_command(self.ssh_client, install_command)
+            except ApplicationError as e:
+                error_msg = str(e.payload.get("message", ""))
+                # timeout command returns exit code 124 when it kills the process
+                if "exit status 124" in error_msg or "exit code 124" in error_msg:
+                    raise ApplicationError(
+                        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                        error_code="WAL_007",
+                        payload={
+                            "error": "Provider Services Installation Timeout",
+                            "message": "Installation timed out. Your network connection is too slow. A minimum of 10 Mbps is required.",
+                        },
+                    )
+                raise
 
             log.info("Validating provider-services installation...")
             _, version_output = run_ssh_command(
@@ -253,6 +266,8 @@ class WalletService:
             log.info(
                 f"Provider-services is successfully installed. Version: {version_output.strip()}"
             )
+        except ApplicationError:
+            raise
         except Exception as e:
             raise ApplicationError(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
