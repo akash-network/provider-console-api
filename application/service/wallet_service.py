@@ -235,9 +235,8 @@ class WalletService:
             try:
                 run_ssh_command(self.ssh_client, install_command)
             except ApplicationError as e:
-                error_msg = str(e.payload.get("message", ""))
                 # timeout command returns exit code 124 when it kills the process
-                if "exit status 124" in error_msg or "exit code 124" in error_msg:
+                if e.payload.get("exit_code") == 124:
                     raise ApplicationError(
                         status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                         error_code="WAL_007",
