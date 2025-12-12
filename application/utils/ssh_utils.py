@@ -200,6 +200,7 @@ def run_ssh_command(
             payload={
                 "error": "SSH Command Failed",
                 "message": f"Command '{command}' failed with error: {error_message}",
+                "exit_code": e.result.return_code,
             },
         )
 
