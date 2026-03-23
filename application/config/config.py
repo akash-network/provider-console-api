@@ -25,17 +25,17 @@ class Config:
         "https://raw.githubusercontent.com/akash-network/provider-configs/main/devices/pcie/gpus.json",
     )
     KEYRING_BACKEND = environ.get("KEYRING_BACKEND", "file")
-    AKASH_VERSION = environ.get("AKASH_VERSION", "v1.0.0")
+    AKASH_VERSION = environ.get("AKASH_VERSION", "v2.0.1")
     AKASH_NODE_HELM_CHART_VERSION = environ.get(
-        "AKASH_NODE_HELM_CHART_VERSION", "14.0.0"
+        "AKASH_NODE_HELM_CHART_VERSION", "17.0.0"
     )
     INGRESS_NGINX_VERSION = environ.get("INGRESS_NGINX_VERSION", "4.11.3")
-    PROVIDER_SERVICES_VERSION = environ.get("PROVIDER_SERVICES_VERSION", "v0.10.1")
+    PROVIDER_SERVICES_VERSION = environ.get("PROVIDER_SERVICES_VERSION", "v0.11.1")
     PROVIDER_SERVICES_HELM_CHART_VERSION = environ.get(
-        "PROVIDER_SERVICES_HELM_CHART_VERSION", "14.0.3"
+        "PROVIDER_SERVICES_HELM_CHART_VERSION", "15.0.1"
     )
-    PROVIDER_HOSTNAME_OPERATOR_VERSION = environ.get("PROVIDER_HOSTNAME_OPERATOR_VERSION", "v0.10.0")
-    PROVIDER_INVENTORY_OPERATOR_VERSION = environ.get("PROVIDER_INVENTORY_OPERATOR_VERSION", "v0.10.0")
+    PROVIDER_HOSTNAME_OPERATOR_VERSION = environ.get("PROVIDER_HOSTNAME_OPERATOR_VERSION", "v0.11.1")
+    PROVIDER_INVENTORY_OPERATOR_VERSION = environ.get("PROVIDER_INVENTORY_OPERATOR_VERSION", "v0.11.1")
     PROVIDER_PRICE_SCRIPT_URL = environ.get(
         "PROVIDER_PRICE_SCRIPT_URL",
         "https://raw.githubusercontent.com/akash-network/helm-charts/main/charts/akash-provider/scripts/price_script_generic.sh",
