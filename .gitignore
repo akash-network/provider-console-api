@@ -12,6 +12,7 @@ __pycache__/
 
 .env
 .env.production
+.env.staging
 bin/
 lib/
 Projects/
