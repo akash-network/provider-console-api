@@ -592,7 +592,6 @@ class CertManagerService:
                 "          apiTokenSecretRef:\n"
                 "            key: api-token\n"
                 "            name: cloudflare-api-token-secret\n"
-                f"          email: {email}\n"
                 "      selector:\n"
                 f"        dnsZones: {zones}\n"
             )

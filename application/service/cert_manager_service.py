@@ -130,8 +130,21 @@ class CertManagerService:
             if cert_manager_input.use_staging
             else Config.LETSENCRYPT_PROD_SERVER
         )
+        if not cert_manager_input.acme_email:
+            raise ApplicationError(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                error_code="CERTMGR_007",
+                payload={
+                    "error": "Missing ACME Email",
+                    "message": "cert_manager.acme_email is required to create the ClusterIssuer",
+                },
+            )
         email = cert_manager_input.acme_email
-        zones = f"['{domain}', 'ingress.{domain}']"
+        zones_block = (
+            f"        dnsZones:\n"
+            f"          - {domain}\n"
+            f"          - ingress.{domain}\n"
+        )
         if cert_manager_input.dns_provider == "cloudflare":
             solver_block = (
                 "    - dns01:\n"
@@ -139,9 +152,8 @@ class CertManagerService:
                 "          apiTokenSecretRef:\n"
                 "            key: api-token\n"
                 "            name: cloudflare-api-token-secret\n"
-                f"          email: {email}\n"
                 "      selector:\n"
-                f"        dnsZones: {zones}\n"
+                f"{zones_block}"
             )
         else:
             project = cert_manager_input.clouddns.project
@@ -153,7 +165,7 @@ class CertManagerService:
                 "            name: clouddns-gcp-dns01-solver-sa\n"
                 "            key: key.json\n"
                 "      selector:\n"
-                f"        dnsZones: {zones}\n"
+                f"{zones_block}"
             )
         manifest = (
             "apiVersion: cert-manager.io/v1\n"
@@ -235,8 +247,10 @@ class CertManagerService:
         )
         while time.time() - start < timeout:
             try:
+                # Suppress per-iteration task-log streaming; only the terminal
+                # success/failure events get streamed.
                 stdout, _ = run_ssh_command(
-                    ssh_client, cmd, check_exit_status=False, task_id=task_id
+                    ssh_client, cmd, check_exit_status=False
                 )
                 if stdout.strip() == "True":
                     log.info("wildcard-ingress Certificate is Ready.")
