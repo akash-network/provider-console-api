@@ -118,17 +118,27 @@ EOF
             if "secret/akash-default-tls" in existing:
                 log.info("akash-default-tls already exists; skipping creation.")
                 return
-            cmds = [
+            openssl_cmd = (
                 "openssl req -x509 -nodes -days 3650 -newkey rsa:2048 "
                 "-keyout /tmp/akash-default.key -out /tmp/akash-default.crt "
-                "-subj '/CN=default'",
+                "-subj '/CN=default'"
+            )
+            kubectl_cmd = (
                 "kubectl -n akash-gateway create secret tls akash-default-tls "
-                "--cert=/tmp/akash-default.crt --key=/tmp/akash-default.key",
-                "rm -f /tmp/akash-default.key /tmp/akash-default.crt",
-            ]
-            for cmd in cmds:
+                "--cert=/tmp/akash-default.crt --key=/tmp/akash-default.key"
+            )
+            cleanup_cmd = "rm -f /tmp/akash-default.key /tmp/akash-default.crt"
+            try:
                 time.sleep(1)
-                run_ssh_command(ssh_client, cmd, task_id=task_id)
+                run_ssh_command(ssh_client, openssl_cmd, task_id=task_id)
+                time.sleep(1)
+                run_ssh_command(ssh_client, kubectl_cmd, task_id=task_id)
+            finally:
+                # Best-effort cleanup of temp key material; never mask the original error.
+                try:
+                    run_ssh_command(ssh_client, cleanup_cmd, task_id=task_id)
+                except Exception as cleanup_err:
+                    log.warning("akash-default-tls temp file cleanup failed: %s", cleanup_err)
             log.info("akash-default-tls Secret created.")
         except Exception as e:
             raise ApplicationError(
