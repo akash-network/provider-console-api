@@ -230,46 +230,6 @@ EOF
             )
             return None
 
-    def _install_nginx_ingress(self, ssh_client, task_id: str):
-        log.info("Installing NGINX Ingress Controller...")
-        ingress_config = """
-cat > ingress-nginx-custom.yaml << EOF
-controller:
-  service:
-    type: ClusterIP
-  ingressClassResource:
-    name: "akash-ingress-class"
-  kind: DaemonSet
-  hostPort:
-    enabled: true
-  admissionWebhooks:
-    port: 7443
-  config:
-    allow-snippet-annotations: false
-    compute-full-forwarded-for: true
-    proxy-buffer-size: "16k"
-  metrics:
-    enabled: true
-  extraArgs:
-    enable-ssl-passthrough: true
-tcp:
-  "8443": "akash-services/akash-provider:8443"
-  "8444": "akash-services/akash-provider:8444"
-EOF
-"""
-        time.sleep(2)
-        run_ssh_command(ssh_client, ingress_config, task_id=task_id)
-        commands = [
-            "helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx",
-            f"helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version {Config.INGRESS_NGINX_VERSION} --namespace ingress-nginx --create-namespace -f ~/ingress-nginx-custom.yaml --set controller.admissionWebhooks.enabled=false",
-            "kubectl label ns ingress-nginx app.kubernetes.io/name=ingress-nginx app.kubernetes.io/instance=ingress-nginx",
-            "kubectl label ingressclass akash-ingress-class akash.network=true",
-        ]
-        for cmd in commands:
-            time.sleep(2)
-            run_ssh_command(ssh_client, cmd, task_id=task_id)
-        log.info("NGINX Ingress Controller installation completed.")
-
     def _configure_gpu_support(
         self, ssh_client, install_gpu_driver_nodes, task_id: str
     ):
@@ -571,7 +531,12 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
 
         commands = [
             "/usr/local/bin/k3s-uninstall.sh",
-            "rm -rf ~/bin/ ~/calico.yaml ~/ingress-nginx-custom.yaml ~/key.pem  ~/provider/ ~/.akash/ ~/.kube/",
+            (
+                "rm -rf ~/bin/ ~/calico.yaml ~/key.pem ~/provider/ "
+                "~/.akash/ ~/.kube/ "
+                "~/ingress-nginx-custom.yaml "
+                "~/values-nginx-gateway-fabric.yaml"
+            ),
         ]
         for cmd in commands:
             run_ssh_command(ssh_client, cmd, task_id=task_id)
