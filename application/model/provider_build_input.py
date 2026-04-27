@@ -1,6 +1,5 @@
 from pydantic import BaseModel, model_validator, field_validator
 from typing import List, Optional, Literal
-from typing import Optional
 from fastapi import UploadFile
 from base64 import b64decode
 import io
@@ -107,7 +106,8 @@ class ProviderBuildInput(BaseModel):
                 config = provider.get("config") or {}
                 email = config.get("email")
                 if email:
-                    cm["acme_email"] = email
+                    cm = {**cm, "acme_email": email}
+                    data = {**data, "cert_manager": cm}
         return data
 
     @model_validator(mode="after")

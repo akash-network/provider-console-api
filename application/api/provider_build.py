@@ -52,7 +52,7 @@ def process_provider_build_input(data: Dict) -> ProviderBuildInput:
                     "message": "The provided configuration is invalid.",
                     "error_code": "VAL_005",
                     "details": [
-                        {"field": error["loc"][0], "message": error["msg"]}
+                        {"field": error["loc"][0] if error["loc"] else "__root__", "message": error["msg"]}
                         for error in e.errors()
                     ],
                 },
@@ -134,7 +134,7 @@ async def build_provider(
                     "message": "Invalid provider build input",
                     "error_code": "VAL_006",
                     "details": [
-                        {"field": error["loc"][0], "message": error["msg"]}
+                        {"field": error["loc"][0] if error["loc"] else "__root__", "message": error["msg"]}
                         for error in ve.errors()
                     ],
                 },
