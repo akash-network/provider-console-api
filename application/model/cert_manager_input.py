@@ -1,40 +1,52 @@
 from base64 import b64decode
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, SecretStr, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, SecretStr, field_validator, model_validator
 
 
 class CloudflareConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     api_token: SecretStr
 
 
 class CloudDnsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     project: str
     service_account_json: SecretStr  # raw JSON or base64-encoded JSON
 
-    @model_validator(mode="after")
-    def _decode_if_base64(self):
-        # Accept either raw JSON or base64-encoded JSON; normalize to raw JSON.
-        raw = self.service_account_json.get_secret_value().strip()
-        if not raw.startswith("{"):
-            try:
-                decoded = b64decode(raw).decode()
-                if decoded.startswith("{"):
-                    object.__setattr__(self, "service_account_json", SecretStr(decoded))
-            except Exception:
-                pass
-        return self
+    @field_validator("service_account_json", mode="before")
+    @classmethod
+    def _normalize_b64(cls, v):
+        if not isinstance(v, str):
+            return v
+        raw = v.strip()
+        if raw.startswith("{"):
+            return raw
+        try:
+            decoded = b64decode(raw).decode()
+        except Exception as exc:
+            raise ValueError(
+                "service_account_json must be raw JSON (starting with '{') "
+                "or base64-encoded JSON"
+            ) from exc
+        if not decoded.startswith("{"):
+            raise ValueError(
+                "service_account_json must be raw JSON (starting with '{') "
+                "or base64-encoded JSON"
+            )
+        return decoded
 
 
 class CertManagerInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     acme_email: Optional[EmailStr] = None
     use_staging: bool = False
     dns_provider: Literal["cloudflare", "clouddns"]
     cloudflare: Optional[CloudflareConfig] = None
     clouddns: Optional[CloudDnsConfig] = None
-
-    class Config:
-        extra = "forbid"
 
     @model_validator(mode="after")
     def _exactly_one_provider_block(self):
