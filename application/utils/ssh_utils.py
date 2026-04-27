@@ -140,6 +140,7 @@ def run_ssh_command(
     command: str,
     check_exit_status: bool = True,
     task_id: str = None,
+    redact: bool = False,
     **kwargs,
 ) -> Tuple[str, str]:
     """Run an SSH command and return the output."""
@@ -194,12 +195,13 @@ def run_ssh_command(
         return stdout_str, stderr_str
     except UnexpectedExit as e:
         error_message = e.result.stderr if e.result.stderr != "" else str(e)
+        displayed_command = "<redacted sensitive command>" if redact else command
         raise ApplicationError(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             error_code="SSH_004",
             payload={
                 "error": "SSH Command Failed",
-                "message": f"Command '{command}' failed with error: {error_message}",
+                "message": f"Command '{displayed_command}' failed with error: {error_message}",
                 "exit_code": e.result.return_code,
             },
         )
