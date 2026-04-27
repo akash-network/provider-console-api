@@ -534,8 +534,7 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
             (
                 "rm -rf ~/bin/ ~/calico.yaml ~/key.pem ~/provider/ "
                 "~/.akash/ ~/.kube/ "
-                "~/ingress-nginx-custom.yaml "
-                "~/values-nginx-gateway-fabric.yaml"
+                "~/ingress-nginx-custom.yaml"
             ),
         ]
         for cmd in commands:
