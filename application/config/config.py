@@ -44,8 +44,8 @@ class Config:
 
     # Gateway API + cert-manager (v0.12.0 Gateway API migration)
     CERT_MANAGER_VERSION = environ.get("CERT_MANAGER_VERSION", "v1.19.1")
-    GATEWAY_API_CRD_REF = environ.get("GATEWAY_API_CRD_REF", "v2.5.1")
-    NGINX_GATEWAY_FABRIC_VERSION = environ.get("NGINX_GATEWAY_FABRIC_VERSION", "2.5.1")
+    GATEWAY_API_CRD_REF = environ.get("GATEWAY_API_CRD_REF", "v2.5.1")  # git tag ref for kubectl kustomize ?ref= — v-prefix required
+    NGINX_GATEWAY_FABRIC_VERSION = environ.get("NGINX_GATEWAY_FABRIC_VERSION", "2.5.1")  # helm --version, no v-prefix
     AKASH_GATEWAY_HELM_CHART_VERSION = environ.get("AKASH_GATEWAY_HELM_CHART_VERSION", "1.0.0")
     CERT_READY_TIMEOUT_SECONDS = int(environ.get("CERT_READY_TIMEOUT_SECONDS", "600"))
     LETSENCRYPT_PROD_SERVER = "https://acme-v02.api.letsencrypt.org/directory"
