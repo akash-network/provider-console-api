@@ -10,6 +10,7 @@ from fastapi.datastructures import UploadFile
 from application.exception.application_error import ApplicationError
 from application.model.provider_build_input import ProviderBuildInput
 from application.model.machine_input import ControlMachineInput
+from application.model.cert_manager_input import CertManagerInput
 from application.service.akash_cluster_service import AkashClusterService
 from application.service.provider_service import ProviderService
 from application.utils.ssh_utils import get_ssh_client
@@ -471,6 +472,88 @@ async def upgrade_provider(
                 "error": {
                     "message": f"An error occurred while upgrading the provider: {str(e)}",
                     "error_code": "PRV_007",
+                },
+            },
+        )
+
+
+@router.post("/provider/migrate-gateway-api", include_in_schema=False)
+async def migrate_gateway_api(
+    background_tasks: BackgroundTasks,
+    machine_input: Dict,
+    wallet_address: str = Depends(verify_token),
+) -> Dict:
+    try:
+        control_machine = machine_input["control_machine"]
+        if "keyfile" in control_machine and control_machine["keyfile"]:
+            control_machine["keyfile"] = decode_keyfile_to_uploadfile(control_machine["keyfile"])
+        control_machine_input = ControlMachineInput(**control_machine)
+
+        cert_manager_input = CertManagerInput(**machine_input["cert_manager"])
+        domain = machine_input["domain"]
+        if not cert_manager_input.acme_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "status": "error",
+                    "error": {
+                        "message": "cert_manager.acme_email is required for migration",
+                        "error_code": "VAL_007",
+                    },
+                },
+            )
+
+        action_id = str(uuid4())
+        akash_cluster_service = AkashClusterService()
+        background_tasks.add_task(
+            akash_cluster_service.migrate_gateway_api,
+            action_id,
+            control_machine_input,
+            cert_manager_input,
+            domain,
+            wallet_address,
+        )
+        return {
+            "message": "Gateway API migration started successfully",
+            "action_id": action_id,
+        }
+    except HTTPException:
+        raise
+    except ValidationError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": "Invalid migration input",
+                    "error_code": "VAL_008",
+                    "details": [
+                        {"field": err["loc"][0] if err["loc"] else "__root__", "message": err["msg"]}
+                        for err in ve.errors()
+                    ],
+                },
+            },
+        )
+    except KeyError as ke:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"Missing required field: {ke}",
+                    "error_code": "VAL_009",
+                },
+            },
+        )
+    except Exception as e:
+        log.error("Error starting Gateway API migration: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"An error occurred while starting migration: {e}",
+                    "error_code": "PRV_009",
                 },
             },
         )
