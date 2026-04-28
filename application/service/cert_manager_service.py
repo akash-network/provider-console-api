@@ -237,24 +237,47 @@ class CertManagerService:
 
     def wait_for_certificate_ready(self, ssh_client, task_id: str):
         log.info("Waiting for wildcard-ingress Certificate Ready=True...")
+        from application.utils.redis import get_redis_client
+
+        redis_client = get_redis_client()
         timeout = Config.CERT_READY_TIMEOUT_SECONDS
         check_interval = 10
+        heartbeat_every = 3  # one heartbeat per ~30s
         start = time.time()
+        iteration = 0
         cmd = (
             "kubectl -n akash-gateway get certificate wildcard-ingress "
             "-o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' "
             "2>/dev/null || true"
         )
+        if task_id:
+            redis_client.xadd(
+                f"task:{task_id}",
+                {"stdout": "Waiting for wildcard-ingress Certificate Ready=True (up to %ss)..." % timeout},
+            )
         while time.time() - start < timeout:
+            iteration += 1
             try:
-                # Suppress per-iteration task-log streaming; only the terminal
-                # success/failure events get streamed.
+                # Suppress per-iteration task-log streaming for the kubectl probe
+                # itself; emit a periodic heartbeat instead so the operator can
+                # see progress without 60+ identical stdout lines.
                 stdout, _ = run_ssh_command(
                     ssh_client, cmd, check_exit_status=False
                 )
                 if stdout.strip() == "True":
                     log.info("wildcard-ingress Certificate is Ready.")
+                    if task_id:
+                        redis_client.xadd(
+                            f"task:{task_id}",
+                            {"stdout": "wildcard-ingress Certificate is Ready"},
+                        )
                     return
+                if task_id and iteration % heartbeat_every == 0:
+                    elapsed = int(time.time() - start)
+                    redis_client.xadd(
+                        f"task:{task_id}",
+                        {"stdout": f"Still waiting for wildcard-ingress Certificate ({elapsed}s elapsed)..."},
+                    )
             except Exception as e:
                 log.debug("Cert readiness probe error (continuing): %s", e)
             time.sleep(check_interval)

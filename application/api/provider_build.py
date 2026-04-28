@@ -491,6 +491,17 @@ async def migrate_gateway_api(
 
         cert_manager_input = CertManagerInput(**machine_input["cert_manager"])
         domain = machine_input["domain"]
+        if not isinstance(domain, str) or not domain.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "status": "error",
+                    "error": {
+                        "message": "domain is required and must be a non-empty string",
+                        "error_code": "VAL_010",
+                    },
+                },
+            )
         if not cert_manager_input.acme_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
