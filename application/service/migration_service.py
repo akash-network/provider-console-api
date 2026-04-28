@@ -5,8 +5,6 @@ from packaging import version
 
 from application.config.config import Config
 from application.exception.application_error import ApplicationError
-from application.service.cert_manager_service import CertManagerService
-from application.service.gateway_api_service import GatewayApiService
 from application.utils.logger import log
 from application.utils.ssh_utils import run_ssh_command
 
@@ -16,10 +14,6 @@ class MigrationService:
 
     BACKUP_DIR = "/root/provider/backups"
     BACKUP_SUFFIX = ".pre-v0.12.0.values"
-
-    def __init__(self):
-        self.gateway_api_service = GatewayApiService()
-        self.cert_manager_service = CertManagerService()
 
     def verify_pre_migration_version(self, ssh_client, task_id: str):
         log.info("Verifying provider version is v0.11.x...")
@@ -31,14 +25,24 @@ class MigrationService:
         current = stdout.strip().lstrip("v")
         if not current:
             raise ApplicationError(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_404_NOT_FOUND,
                 error_code="MIGRATE_001",
                 payload={
                     "error": "Provider Not Found",
                     "message": "Could not detect installed akash-provider release",
                 },
             )
-        parsed = version.parse(current)
+        try:
+            parsed = version.parse(current)
+        except version.InvalidVersion:
+            raise ApplicationError(
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code="MIGRATE_001",
+                payload={
+                    "error": "Provider Not Found",
+                    "message": f"Could not parse app_version '{current}' from akash-provider release",
+                },
+            )
         floor = version.parse("0.11.0")
         ceiling = version.parse("0.12.0")
         if not (floor <= parsed < ceiling):
@@ -97,6 +101,9 @@ class MigrationService:
                 f"-f {self.BACKUP_DIR}/inventory-operator{self.BACKUP_SUFFIX} "
                 f"--set image.tag={inventory_v}{devel}"
             ),
+            "mv -f ~/provider/price_script_generic.sh ~/provider/price_script_generic.sh.pre-v0.12.0 || true",
+            f"wget -q -O ~/provider/price_script_generic.sh {Config.PROVIDER_PRICE_SCRIPT_URL}",
+            "chmod +x ~/provider/price_script_generic.sh",
             (
                 f"helm -n akash-services upgrade akash-provider "
                 f"{repo}/provider "
