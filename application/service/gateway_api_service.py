@@ -45,6 +45,8 @@ nginxGateway:
   config:
     logging:
       level: info
+  snippets:
+    enable: true
   resources:
     requests:
       cpu: 1000m
