@@ -28,9 +28,9 @@ class GatewayApiService:
                 error_code="GATEWAY_001",
                 payload={
                     "error": "Gateway API CRD Install Failed",
-                    "message": f"Failed to install Gateway API CRDs: {str(e)}",
+                    "message": f"Failed to install Gateway API CRDs: {e!s}",
                 },
-            )
+            ) from e
 
     def install_nginx_gateway_fabric(self, ssh_client, task_id: str):
         log.info("Installing NGINX Gateway Fabric...")
@@ -100,9 +100,9 @@ EOF
                 error_code="GATEWAY_002",
                 payload={
                     "error": "NGINX Gateway Fabric Install Failed",
-                    "message": f"Failed to install NGF: {str(e)}",
+                    "message": f"Failed to install NGF: {e!s}",
                 },
-            )
+            ) from e
 
     def create_akash_default_tls_secret(self, ssh_client, task_id: str):
         log.info("Creating self-signed akash-default-tls Secret in akash-gateway ns...")
@@ -148,9 +148,9 @@ EOF
                 error_code="GATEWAY_003",
                 payload={
                     "error": "akash-default-tls Creation Failed",
-                    "message": f"Failed to create akash-default-tls: {str(e)}",
+                    "message": f"Failed to create akash-default-tls: {e!s}",
                 },
-            )
+            ) from e
 
     def install_akash_gateway(self, ssh_client, task_id: str):
         log.info("Installing akash-gateway Helm chart...")
@@ -169,9 +169,9 @@ EOF
                 error_code="GATEWAY_004",
                 payload={
                     "error": "akash-gateway Install Failed",
-                    "message": f"Failed to install akash-gateway: {str(e)}",
+                    "message": f"Failed to install akash-gateway: {e!s}",
                 },
-            )
+            ) from e
 
     def rollout_restart_ngf(self, ssh_client, task_id: str):
         log.info("Rolling out NGINX Gateway Fabric...")
@@ -189,6 +189,6 @@ EOF
                 error_code="GATEWAY_005",
                 payload={
                     "error": "NGF Rollout Restart Failed",
-                    "message": f"Failed to rollout-restart NGF: {str(e)}",
+                    "message": f"Failed to rollout-restart NGF: {e!s}",
                 },
-            )
+            ) from e

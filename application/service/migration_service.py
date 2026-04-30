@@ -42,7 +42,7 @@ class MigrationService:
                     "error": "Provider Not Found",
                     "message": f"Could not parse app_version '{current}' from akash-provider release",
                 },
-            )
+            ) from None
         floor = version.parse("0.11.0")
         ceiling = version.parse("0.12.0")
         if not (floor <= parsed < ceiling):

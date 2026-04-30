@@ -485,8 +485,9 @@ async def migrate_gateway_api(
 ) -> Dict:
     try:
         control_machine = machine_input["control_machine"]
-        if "keyfile" in control_machine and control_machine["keyfile"]:
-            control_machine["keyfile"] = decode_keyfile_to_uploadfile(control_machine["keyfile"])
+        keyfile_value = control_machine.get("keyfile")
+        if keyfile_value:
+            control_machine["keyfile"] = decode_keyfile_to_uploadfile(keyfile_value)
         control_machine_input = ControlMachineInput(**control_machine)
 
         cert_manager_input = CertManagerInput(**machine_input["cert_manager"])
@@ -544,7 +545,7 @@ async def migrate_gateway_api(
                     ],
                 },
             },
-        )
+        ) from None
     except KeyError as ke:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -555,7 +556,7 @@ async def migrate_gateway_api(
                     "error_code": "VAL_009",
                 },
             },
-        )
+        ) from None
     except Exception as e:
         log.error("Error starting Gateway API migration: %s", e)
         raise HTTPException(
@@ -567,7 +568,7 @@ async def migrate_gateway_api(
                     "error_code": "PRV_009",
                 },
             },
-        )
+        ) from None
 
 
 @router.post("/restart-provider", include_in_schema=False)

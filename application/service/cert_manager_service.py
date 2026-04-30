@@ -53,9 +53,9 @@ class CertManagerService:
                 error_code="CERTMGR_001",
                 payload={
                     "error": "cert-manager Install Failed",
-                    "message": f"Failed to install cert-manager: {str(e)}",
+                    "message": f"Failed to install cert-manager: {e!s}",
                 },
-            )
+            ) from e
 
     def create_dns_provider_secret(
         self, ssh_client, cert_manager_input: CertManagerInput, task_id: str
@@ -89,9 +89,9 @@ class CertManagerService:
                 error_code="CERTMGR_002",
                 payload={
                     "error": "Cloudflare Secret Apply Failed",
-                    "message": f"Failed to apply Cloudflare API token Secret: {str(e)}",
+                    "message": f"Failed to apply Cloudflare API token Secret: {e!s}",
                 },
-            )
+            ) from e
 
     def _create_clouddns_secret(self, ssh_client, cert_manager_input, task_id):
         sa_json = cert_manager_input.clouddns.service_account_json.get_secret_value()
@@ -117,9 +117,9 @@ class CertManagerService:
                 error_code="CERTMGR_003",
                 payload={
                     "error": "CloudDNS Secret Apply Failed",
-                    "message": f"Failed to apply CloudDNS SA Secret: {str(e)}",
+                    "message": f"Failed to apply CloudDNS SA Secret: {e!s}",
                 },
-            )
+            ) from e
 
     def create_cluster_issuer(
         self, ssh_client, cert_manager_input: CertManagerInput, domain: str, task_id: str
@@ -192,9 +192,9 @@ class CertManagerService:
                 error_code="CERTMGR_004",
                 payload={
                     "error": "ClusterIssuer Apply Failed",
-                    "message": f"Failed to apply ClusterIssuer: {str(e)}",
+                    "message": f"Failed to apply ClusterIssuer: {e!s}",
                 },
-            )
+            ) from e
 
     def create_wildcard_certificate(
         self, ssh_client, cert_manager_input: CertManagerInput, domain: str, task_id: str
@@ -231,9 +231,9 @@ class CertManagerService:
                 error_code="CERTMGR_005",
                 payload={
                     "error": "Wildcard Certificate Apply Failed",
-                    "message": f"Failed to apply wildcard Certificate: {str(e)}",
+                    "message": f"Failed to apply wildcard Certificate: {e!s}",
                 },
-            )
+            ) from e
 
     def wait_for_certificate_ready(self, ssh_client, task_id: str):
         log.info("Waiting for wildcard-ingress Certificate Ready=True...")
