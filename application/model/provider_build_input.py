@@ -1,9 +1,10 @@
 from pydantic import BaseModel, model_validator, field_validator
 from typing import List, Optional, Literal
-from typing import Optional
 from fastapi import UploadFile
 from base64 import b64decode
 import io
+
+from application.model.cert_manager_input import CertManagerInput
 
 
 class Node(BaseModel):
@@ -93,3 +94,24 @@ class ProviderBuildInput(BaseModel):
     wallet: Wallet
     nodes: List[Node]
     provider: Provider
+    cert_manager: CertManagerInput
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_acme_email_from_provider_email(cls, data):
+        if isinstance(data, dict):
+            cm = data.get("cert_manager")
+            if isinstance(cm, dict) and not cm.get("acme_email"):
+                provider = data.get("provider") or {}
+                config = provider.get("config") or {}
+                email = config.get("email")
+                if email:
+                    cm = {**cm, "acme_email": email}
+                    data = {**data, "cert_manager": cm}
+        return data
+
+    @model_validator(mode="after")
+    def _require_acme_email(self):
+        if self.cert_manager.acme_email is None:
+            raise ValueError("cert_manager.acme_email is required (or set provider.config.email)")
+        return self

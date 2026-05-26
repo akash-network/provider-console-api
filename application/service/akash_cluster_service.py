@@ -3,8 +3,12 @@ from application.service.k3s_service import K3sService
 from application.service.provider_service import ProviderService
 from application.service.upgrade_service import UpgradeService
 from application.service.persistent_storage_service import PersistentStorageService
+from application.service.cert_manager_service import CertManagerService
+from application.service.gateway_api_service import GatewayApiService
 from application.service.cluster_node_service import ClusterNodeService
+from application.service.migration_service import MigrationService
 from application.model.provider_build_input import ProviderBuildInput
+from application.model.cert_manager_input import CertManagerInput
 from application.service.task_manager import TaskManager, Task
 from application.utils.logger import log
 from application.data.wallet_addresses import store_wallet_action_mapping
@@ -18,6 +22,9 @@ class AkashClusterService:
         self.provider_service = ProviderService()
         self.persistent_storage_service = PersistentStorageService()
         self.upgrade_service = UpgradeService()
+        self.gateway_api_service = GatewayApiService()
+        self.cert_manager_service = CertManagerService()
+        self.migration_service = MigrationService()
         self.task_manager = TaskManager()
 
     async def create_akash_cluster(
@@ -208,6 +215,7 @@ class AkashClusterService:
         attributes = provider_build_input.provider.attributes
         pricing = provider_build_input.provider.pricing
         email = provider_build_input.provider.config.email
+        cert_manager_input = provider_build_input.cert_manager
 
         ssh_client = get_ssh_client(provider_build_input.nodes[0])
 
@@ -278,9 +286,77 @@ class AkashClusterService:
             ),
             Task(
                 str(uuid4()),
-                "install_nginx_ingress",
-                "Install NGINX Ingress",
-                self.provider_service._install_nginx_ingress,
+                "install_gateway_api_crds",
+                "Install Gateway API CRDs",
+                self.gateway_api_service.install_gateway_api_crds,
+                ssh_client,
+            ),
+            Task(
+                str(uuid4()),
+                "install_nginx_gateway_fabric",
+                "Install NGINX Gateway Fabric",
+                self.gateway_api_service.install_nginx_gateway_fabric,
+                ssh_client,
+            ),
+            Task(
+                str(uuid4()),
+                "install_cert_manager",
+                "Install cert-manager",
+                self.cert_manager_service.install_cert_manager,
+                ssh_client,
+            ),
+            Task(
+                str(uuid4()),
+                "create_dns_provider_secret",
+                "Create DNS provider Secret",
+                self.cert_manager_service.create_dns_provider_secret,
+                ssh_client,
+                cert_manager_input,
+            ),
+            Task(
+                str(uuid4()),
+                "create_cluster_issuer",
+                "Create ClusterIssuer",
+                self.cert_manager_service.create_cluster_issuer,
+                ssh_client,
+                cert_manager_input,
+                domain,
+            ),
+            Task(
+                str(uuid4()),
+                "create_wildcard_certificate",
+                "Request wildcard Certificate",
+                self.cert_manager_service.create_wildcard_certificate,
+                ssh_client,
+                cert_manager_input,
+                domain,
+            ),
+            Task(
+                str(uuid4()),
+                "wait_for_certificate_ready",
+                "Wait for wildcard Certificate Ready",
+                self.cert_manager_service.wait_for_certificate_ready,
+                ssh_client,
+            ),
+            Task(
+                str(uuid4()),
+                "create_akash_default_tls_secret",
+                "Create akash-default-tls Secret",
+                self.gateway_api_service.create_akash_default_tls_secret,
+                ssh_client,
+            ),
+            Task(
+                str(uuid4()),
+                "install_akash_gateway",
+                "Install akash-gateway",
+                self.gateway_api_service.install_akash_gateway,
+                ssh_client,
+            ),
+            Task(
+                str(uuid4()),
+                "rollout_restart_ngf",
+                "Rollout-restart NGINX Gateway Fabric",
+                self.gateway_api_service.rollout_restart_ngf,
                 ssh_client,
             ),
         ]
@@ -427,6 +503,134 @@ class AkashClusterService:
         store_wallet_action_mapping(wallet_address, action_id)
         await self.task_manager.run_action(action_id)
         log.info(f"Provider upgrade completed for action {action_id}")
+
+    async def migrate_gateway_api(
+        self,
+        action_id,
+        control_machine,
+        cert_manager_input: CertManagerInput,
+        domain: str,
+        wallet_address,
+    ):
+        log.info(f"Starting Gateway API migration for action {action_id}")
+
+        try:
+            ssh_client = get_ssh_client(control_machine)
+            try:
+                tasks = [
+                    Task(
+                        str(uuid4()),
+                        "verify_pre_migration_version",
+                        "Verify source version is v0.11.x",
+                        self.migration_service.verify_pre_migration_version,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "backup_helm_values",
+                        "Backup helm values to /root/provider/backups",
+                        self.migration_service.backup_helm_values,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "install_gateway_api_crds",
+                        "Install Gateway API CRDs",
+                        self.gateway_api_service.install_gateway_api_crds,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "install_nginx_gateway_fabric",
+                        "Install NGINX Gateway Fabric",
+                        self.gateway_api_service.install_nginx_gateway_fabric,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "install_cert_manager",
+                        "Install cert-manager (idempotent)",
+                        self.cert_manager_service.install_cert_manager,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "create_dns_provider_secret",
+                        "Create DNS provider Secret",
+                        self.cert_manager_service.create_dns_provider_secret,
+                        ssh_client,
+                        cert_manager_input,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "create_cluster_issuer",
+                        "Create ClusterIssuer",
+                        self.cert_manager_service.create_cluster_issuer,
+                        ssh_client,
+                        cert_manager_input,
+                        domain,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "create_wildcard_certificate",
+                        "Request wildcard Certificate",
+                        self.cert_manager_service.create_wildcard_certificate,
+                        ssh_client,
+                        cert_manager_input,
+                        domain,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "wait_for_certificate_ready",
+                        "Wait for wildcard Certificate Ready",
+                        self.cert_manager_service.wait_for_certificate_ready,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "create_akash_default_tls_secret",
+                        "Create akash-default-tls Secret",
+                        self.gateway_api_service.create_akash_default_tls_secret,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "install_akash_gateway",
+                        "Install akash-gateway",
+                        self.gateway_api_service.install_akash_gateway,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "upgrade_operators_and_provider",
+                        "Upgrade operators + provider to v0.12.0",
+                        self.migration_service.upgrade_operators_and_provider,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "uninstall_ingress_nginx",
+                        "Uninstall ingress-nginx",
+                        self.migration_service.uninstall_ingress_nginx,
+                        ssh_client,
+                    ),
+                    Task(
+                        str(uuid4()),
+                        "rollout_restart_ngf",
+                        "Rollout-restart NGINX Gateway Fabric",
+                        self.gateway_api_service.rollout_restart_ngf,
+                        ssh_client,
+                    ),
+                ]
+                self.task_manager.create_action(action_id, "Migrate Gateway API", tasks)
+                store_wallet_action_mapping(wallet_address, action_id)
+                await self.task_manager.run_action(action_id)
+                log.info(f"Gateway API migration completed for action {action_id}")
+            finally:
+                ssh_client.close()
+        except Exception as e:
+            log.error(f"Error during Gateway API migration for action {action_id}: {str(e)}")
+            raise
 
     async def create_persistent_storage(
         self, action_id, control_machine, storage_info, wallet_address

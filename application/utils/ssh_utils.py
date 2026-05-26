@@ -140,6 +140,7 @@ def run_ssh_command(
     command: str,
     check_exit_status: bool = True,
     task_id: str = None,
+    redact: bool = False,
     **kwargs,
 ) -> Tuple[str, str]:
     """Run an SSH command and return the output."""
@@ -150,37 +151,29 @@ def run_ssh_command(
         stdout_str = result.stdout.strip()
         stderr_str = result.stderr.strip()
 
-        # Stream logs to Redis and MongoDB if task_id is provided
+        # Stream logs to Redis and MongoDB if task_id is provided.
+        # When redact=True, the command may carry credentials in stdout/stderr (e.g. kubectl
+        # echoing a manifest in an error message), so we replace the entire output with a
+        # single placeholder rather than streaming line-by-line.
         if task_id:
 
-            # Prepare logs for MongoDB
             logs_to_append = []
 
-            if stdout_str:
-                for line in result.stdout.splitlines():
-                    # Add to Redis stream
-                    redis_client.xadd(f"task:{task_id}", {"stdout": line})
-                    # Prepare for MongoDB
-                    logs_to_append.append(
-                        {
-                            "type": "stdout",
-                            "message": line,
-                        }
-                    )
+            if redact:
+                placeholder = "<output suppressed for sensitive command>"
+                redis_client.xadd(f"task:{task_id}", {"stdout": placeholder})
+                logs_to_append.append({"type": "stdout", "message": placeholder})
+            else:
+                if stdout_str:
+                    for line in result.stdout.splitlines():
+                        redis_client.xadd(f"task:{task_id}", {"stdout": line})
+                        logs_to_append.append({"type": "stdout", "message": line})
 
-            if stderr_str:
-                for line in result.stderr.splitlines():
-                    # Add to Redis stream
-                    redis_client.xadd(f"task:{task_id}", {"stderr": line})
-                    # Prepare for MongoDB
-                    logs_to_append.append(
-                        {
-                            "type": "stderr",
-                            "message": line,
-                        }
-                    )
+                if stderr_str:
+                    for line in result.stderr.splitlines():
+                        redis_client.xadd(f"task:{task_id}", {"stderr": line})
+                        logs_to_append.append({"type": "stderr", "message": line})
 
-            # Update MongoDB document with new logs
             if logs_to_append:
                 logs_collection.update_one(
                     {"task_id": task_id},
@@ -194,12 +187,13 @@ def run_ssh_command(
         return stdout_str, stderr_str
     except UnexpectedExit as e:
         error_message = e.result.stderr if e.result.stderr != "" else str(e)
+        displayed_command = "<redacted sensitive command>" if redact else command
         raise ApplicationError(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             error_code="SSH_004",
             payload={
                 "error": "SSH Command Failed",
-                "message": f"Command '{command}' failed with error: {error_message}",
+                "message": f"Command '{displayed_command}' failed with error: {error_message}",
                 "exit_code": e.result.return_code,
             },
         )

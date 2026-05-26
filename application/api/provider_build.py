@@ -10,6 +10,7 @@ from fastapi.datastructures import UploadFile
 from application.exception.application_error import ApplicationError
 from application.model.provider_build_input import ProviderBuildInput
 from application.model.machine_input import ControlMachineInput
+from application.model.cert_manager_input import CertManagerInput
 from application.service.akash_cluster_service import AkashClusterService
 from application.service.provider_service import ProviderService
 from application.utils.ssh_utils import get_ssh_client
@@ -52,7 +53,7 @@ def process_provider_build_input(data: Dict) -> ProviderBuildInput:
                     "message": "The provided configuration is invalid.",
                     "error_code": "VAL_005",
                     "details": [
-                        {"field": error["loc"][0], "message": error["msg"]}
+                        {"field": error["loc"][0] if error["loc"] else "__root__", "message": error["msg"]}
                         for error in e.errors()
                     ],
                 },
@@ -134,7 +135,7 @@ async def build_provider(
                     "message": "Invalid provider build input",
                     "error_code": "VAL_006",
                     "details": [
-                        {"field": error["loc"][0], "message": error["msg"]}
+                        {"field": error["loc"][0] if error["loc"] else "__root__", "message": error["msg"]}
                         for error in ve.errors()
                     ],
                 },
@@ -474,6 +475,100 @@ async def upgrade_provider(
                 },
             },
         )
+
+
+@router.post("/provider/migrate-gateway-api", include_in_schema=False)
+async def migrate_gateway_api(
+    background_tasks: BackgroundTasks,
+    machine_input: Dict,
+    wallet_address: str = Depends(verify_token),
+) -> Dict:
+    try:
+        control_machine = machine_input["control_machine"]
+        keyfile_value = control_machine.get("keyfile")
+        if keyfile_value:
+            control_machine["keyfile"] = decode_keyfile_to_uploadfile(keyfile_value)
+        control_machine_input = ControlMachineInput(**control_machine)
+
+        cert_manager_input = CertManagerInput(**machine_input["cert_manager"])
+        domain = machine_input["domain"]
+        if not isinstance(domain, str) or not domain.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "status": "error",
+                    "error": {
+                        "message": "domain is required and must be a non-empty string",
+                        "error_code": "VAL_010",
+                    },
+                },
+            )
+        if not cert_manager_input.acme_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "status": "error",
+                    "error": {
+                        "message": "cert_manager.acme_email is required for migration",
+                        "error_code": "VAL_007",
+                    },
+                },
+            )
+
+        action_id = str(uuid4())
+        akash_cluster_service = AkashClusterService()
+        background_tasks.add_task(
+            akash_cluster_service.migrate_gateway_api,
+            action_id,
+            control_machine_input,
+            cert_manager_input,
+            domain,
+            wallet_address,
+        )
+        return {
+            "message": "Gateway API migration started successfully",
+            "action_id": action_id,
+        }
+    except HTTPException:
+        raise
+    except ValidationError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": "Invalid migration input",
+                    "error_code": "VAL_008",
+                    "details": [
+                        {"field": err["loc"][0] if err["loc"] else "__root__", "message": err["msg"]}
+                        for err in ve.errors()
+                    ],
+                },
+            },
+        ) from None
+    except KeyError as ke:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"Missing required field: {ke}",
+                    "error_code": "VAL_009",
+                },
+            },
+        ) from None
+    except Exception as e:
+        log.exception("Error starting Gateway API migration")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "status": "error",
+                "error": {
+                    "message": f"An error occurred while starting migration: {e}",
+                    "error_code": "PRV_009",
+                },
+            },
+        ) from e
 
 
 @router.post("/restart-provider", include_in_schema=False)

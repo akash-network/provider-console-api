@@ -17,3 +17,5 @@ bin/
 lib/
 Projects/
 pyvenv.cfg
+
+docs/*
