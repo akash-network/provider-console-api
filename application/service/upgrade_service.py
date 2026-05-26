@@ -348,13 +348,16 @@ class UpgradeService:
 
             # Upgrade provider chart
             log.info("Upgrading provider chart...")
+            # --reuse-values keeps install-time --set overrides (notably
+            # letsEncrypt.acme.email) intact across upgrades; -f and --set
+            # below still layer on top.
             if Config.CHAIN_ID == "akashnet-2":
                 provider_upgrade_cmd = (
-                    f"helm upgrade akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript=\"$(cat ~/provider/price_script_generic.sh | openssl base64 -A)\" --set image.tag={app_version}"
+                    f"helm upgrade --reuse-values akash-provider akash/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript=\"$(cat ~/provider/price_script_generic.sh | openssl base64 -A)\" --set image.tag={app_version}"
                 )
             else:
                 provider_upgrade_cmd = (
-                    f"helm upgrade akash-provider akash-dev/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript=\"$(cat ~/provider/price_script_generic.sh | openssl base64 -A)\" --set image.tag={app_version} --devel"
+                    f"helm upgrade --reuse-values akash-provider akash-dev/provider -n akash-services -f ~/provider/provider.yaml --set bidpricescript=\"$(cat ~/provider/price_script_generic.sh | openssl base64 -A)\" --set image.tag={app_version} --devel"
                 )
             run_ssh_command(ssh_client, provider_upgrade_cmd, True, task_id=task_id)
 
