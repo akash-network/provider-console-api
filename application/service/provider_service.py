@@ -148,7 +148,9 @@ EOF
         )
         log.info("Akash provider CRDs installed.")
 
-    def _install_akash_provider(self, ssh_client, provider_version, task_id: str):
+    def _install_akash_provider(
+        self, ssh_client, provider_version, acme_email, task_id: str
+    ):
         log.info("Installing Akash provider...")
         time.sleep(5)
         try:
@@ -164,11 +166,12 @@ EOF
             # Determine helm repo and flags based on chain ID
             helm_repo = "akash" if Config.CHAIN_ID == "akashnet-2" else "akash-dev"
             devel_flag = "" if Config.CHAIN_ID == "akashnet-2" else "--devel"
-            
+
             install_cmd = (
                 f"helm install akash-provider {helm_repo}/provider "
                 f"-n akash-services -f ~/provider/provider.yaml "
-                f"--set image.tag={provider_version} {devel_flag}".strip()
+                f"--set image.tag={provider_version} "
+                f"--set letsEncrypt.acme.email={acme_email} {devel_flag}".strip()
             )
 
             if pricing_script_b64:

@@ -290,6 +290,7 @@ class AkashClusterService:
                 self.provider_service._install_akash_provider,
                 ssh_client,
                 provider_version,
+                cert_manager_input.acme_email,
             ),
             Task(
                 str(uuid4()),
