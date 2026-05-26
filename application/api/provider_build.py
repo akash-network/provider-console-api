@@ -558,7 +558,7 @@ async def migrate_gateway_api(
             },
         ) from None
     except Exception as e:
-        log.error("Error starting Gateway API migration: %s", e)
+        log.exception("Error starting Gateway API migration")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
@@ -568,7 +568,7 @@ async def migrate_gateway_api(
                     "error_code": "PRV_009",
                 },
             },
-        ) from None
+        ) from e
 
 
 @router.post("/restart-provider", include_in_schema=False)
