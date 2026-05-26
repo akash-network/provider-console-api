@@ -578,9 +578,12 @@ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
             helm_repo = "akash" if Config.CHAIN_ID == "akashnet-2" else "akash-dev"
             devel_flag = "" if Config.CHAIN_ID == "akashnet-2" else "--devel"
             
-            # Build helm upgrade command with consistent parameters
+            # Build helm upgrade command with consistent parameters.
+            # --reuse-values keeps install-time --set overrides (notably
+            # letsEncrypt.acme.email) intact; -f and --set below still
+            # layer on top.
             command = (
-                f'helm upgrade --install akash-provider {helm_repo}/provider '
+                f'helm upgrade --install --reuse-values akash-provider {helm_repo}/provider '
                 f'-n akash-services -f ~/provider/provider.yaml '
                 f'--set bidpricescript="{pricing_script_b64}" '
                 f'--set image.tag={provider_version} {devel_flag}'
