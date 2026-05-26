@@ -230,19 +230,17 @@ class WalletService:
             # Install unzip dependency
             run_ssh_command(self.ssh_client, "apt-get install -y unzip")
 
-            # Install provider-services with timeout (15s requires minimum ~10 Mbps connection)
-            install_command = f"timeout 15 bash -c 'curl -sfL https://raw.githubusercontent.com/akash-network/provider/main/install.sh | bash -s -- {Config.PROVIDER_SERVICES_VERSION}'"
+            install_command = f"timeout 60 bash -c 'curl -sfL https://raw.githubusercontent.com/akash-network/provider/main/install.sh | bash -s -- {Config.PROVIDER_SERVICES_VERSION}'"
             try:
                 run_ssh_command(self.ssh_client, install_command)
             except ApplicationError as e:
-                # timeout command returns exit code 124 when it kills the process
                 if e.payload.get("exit_code") == 124:
                     raise ApplicationError(
                         status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                         error_code="WAL_007",
                         payload={
                             "error": "Provider Services Installation Timeout",
-                            "message": "Installation timed out. Your network connection is too slow. A minimum of 10 Mbps is required.",
+                            "message": "Provider-services download did not complete within 60 seconds. Check the target host's network connectivity to GitHub and retry.",
                         },
                     )
                 raise
