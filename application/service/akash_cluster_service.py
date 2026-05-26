@@ -245,6 +245,13 @@ class AkashClusterService:
             ),
             Task(
                 str(uuid4()),
+                "install_gateway_api_crds",
+                "Install Gateway API CRDs",
+                self.gateway_api_service.install_gateway_api_crds,
+                ssh_client,
+            ),
+            Task(
+                str(uuid4()),
                 "install_akash_services",
                 "Install Akash services",
                 self.provider_service._install_akash_services,
@@ -283,13 +290,6 @@ class AkashClusterService:
                 self.provider_service._install_akash_provider,
                 ssh_client,
                 provider_version,
-            ),
-            Task(
-                str(uuid4()),
-                "install_gateway_api_crds",
-                "Install Gateway API CRDs",
-                self.gateway_api_service.install_gateway_api_crds,
-                ssh_client,
             ),
             Task(
                 str(uuid4()),
