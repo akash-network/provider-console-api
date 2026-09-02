@@ -16,6 +16,9 @@ class Config:
     # MongoDB Config
     MONGO_DB_CONNECTION_STRING = environ.get("MONGO_DB_CONNECTION_STRING")
     MONGO_DB_NAME = environ.get("MONGO_DB_NAME")
+    # PEM content of the CA certificate (not a file path), for self-hosted
+    # MongoDB with TLS; leave unset for connections that need no custom CA.
+    MONGO_TLS_CA_CERT = environ.get("MONGO_TLS_CA_CERT")
 
     # Akash Server Config
     AKASH_NODE_STATUS_CHECK = environ.get("AKASH_NODE_STATUS_CHECK")
