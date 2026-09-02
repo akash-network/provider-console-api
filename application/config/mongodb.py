@@ -1,13 +1,22 @@
+import atexit
+import contextlib
+import os
 import tempfile
 
 from pymongo import MongoClient
 from application.config.config import Config
 
 
+def _remove_ca_file(path: str) -> None:
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(path)
+
+
 def _mongo_client_options() -> dict:
     # pymongo only accepts a CA certificate as a file path, so when the PEM
     # content is supplied via MONGO_TLS_CA_CERT (e.g. from Doppler) it is
-    # written to a temp file that lives for the lifetime of the process.
+    # written to a temp file that lives for the lifetime of the process
+    # (pymongo may reconnect at any time) and is removed on normal shutdown.
     if not Config.MONGO_TLS_CA_CERT:
         return {}
     ca_file = tempfile.NamedTemporaryFile(
@@ -15,6 +24,7 @@ def _mongo_client_options() -> dict:
     )
     ca_file.write(Config.MONGO_TLS_CA_CERT)
     ca_file.close()
+    atexit.register(_remove_ca_file, ca_file.name)
     return {"tls": True, "tlsCAFile": ca_file.name}
 
 
